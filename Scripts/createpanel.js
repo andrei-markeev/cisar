@@ -1,0 +1,1 @@
+﻿chrome.devtools.panels.create("CSR Editor", "", "../index.html", function() {});

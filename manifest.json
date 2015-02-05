@@ -1,0 +1,13 @@
+{
+	"name": "Cisar: CSR Live Edit",
+    "homepage_url": "https://github.com/andrei-markeev/cisar",
+	"version": "1.0.0",
+	"description": "SharePoint Client Side Rendering Editor",
+	"icons": {
+        "48": "AppIcon48.png",
+        "128": "AppIcon.png"
+	},
+    "devtools_page": "devtools.html",
+    "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+	"manifest_version": 2
+}
