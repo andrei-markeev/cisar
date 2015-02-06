@@ -9,17 +9,28 @@ module CSREditor {
         private static loadUrlToEditor: { (url: string): void };
         private static savingQueue: { [url: string]: any } = {};
         private static savingProcess: any = null;
+        private static files: { [url: string]: number } = {};
 
         public static addFiles(urls: { [url: string]: number }, loadUrlToEditor: { (url: string): void }) {
 
             FilesList.loadUrlToEditor = loadUrlToEditor;
 
             for (var url in urls) {
-                FilesList.appendFileToList(url);
+                if (!FilesList.files[url]) {
+                    FilesList.appendFileToList(url);
+                    FilesList.files[url] = 1;
+                }
             }
 
             (<HTMLDivElement>document.querySelector('.files > div.add')).onclick = function (ev: MouseEvent) {
                 FilesList.displayAddNewFileUI();
+            };
+
+            (<HTMLDivElement>document.querySelector('.separator')).onclick = function (ev: MouseEvent) {
+                if (document.body.className.indexOf("fullscreen") > -1)
+                    document.body.className = document.body.className.replace("fullscreen", "");
+                else
+                    document.body.className += " fullscreen";
             };
         }
 
@@ -56,7 +67,7 @@ module CSREditor {
             return div;
         }
 
-        private static makeFileCurrent(url: string, div: HTMLDivElement) {
+        private static makeFileCurrent(url: string, div: HTMLDivElement, loadContent: boolean = true) {
             if (CSREditor.Panel.isChanged() && !confirm("Changes to the current file are not saved! Are you sure want to open another file and lose the changes?"))
                 return;
 
@@ -66,7 +77,9 @@ module CSREditor {
             }
 
             div.className = "current";
-            FilesList.loadUrlToEditor(url);
+
+            if (loadContent)
+                FilesList.loadUrlToEditor(url);
         }
 
         private static displayAddNewFileUI() {
@@ -131,57 +144,86 @@ module CSREditor {
 
                 function (result, errorInfo) {
                     if (!errorInfo) {
-                        var wptype = result.isListForm ? "LFWP" : "XLV";
-                        CSREditor.Panel.setEditorText(
-                            '// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' +
-                            '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
-                            'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
-                            '  function init() {\r\n\r\n' +
-                            '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
-                            '      // OnPreRender: function(ctx) { },\r\n\r\n' +
-                            '      Templates: {\r\n\r\n' +
 
-                            (result.isListForm ? '' :
-                            '      //     View: function(ctx) { return ""; },\r\n' +
-                            '      //     Header: function(ctx) { return ""; },\r\n' +
-                            '      //     Body: function(ctx) { return ""; },\r\n' +
-                            '      //     Group: function(ctx) { return ""; },\r\n' +
-                            '      //     Item: function(ctx) { return ""; },\r\n'
-                            ) +
+                        var handle = setInterval(function () {
 
-                            '      //     Fields: {\r\n' +
-                            '      //         "<fieldInternalName>": {\r\n' +
-                            '      //             View: function(ctx) { return ""; },\r\n' +
-                            '      //             EditForm: function(ctx) { return ""; },\r\n' +
-                            '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
-                            '      //             NewForm: function(ctx) { return ""; },\r\n' +
-                            '      //         }\r\n' +
-                            '      //     },\r\n' +
+                            CSREditor.ChromeIntegration.eval(
+                                "(" + SPActions.checkFileCreated + ")();",
+                                function (result2, errorInfo) {
+                                    if (errorInfo)
+                                        console.log(errorInfo);
+                                    else if (result2 != "wait") {
+                                        clearInterval(handle);
+                                        if (result2 == "created")
+                                            FilesList.fileWasCreated(newFileName, result);
+                                        else if (result2 == "error")
+                                            alert("There was an error when creating the file. Please check console for details.");
+                                    }
 
-                            (result.isListForm ? '' :
-                            '      //     Footer: function(ctx) { return ""; }\r\n'
-                            ) +
+                                });
 
-                            '\r\n' +
-                            '      },\r\n\r\n' +
-                            '      // OnPostRender: function(ctx) { },\r\n\r\n' +
+                        }, 1000);
 
-                            (result.isListForm ? '' :
-                            '      BaseViewID: ' + result.baseViewId + ',\r\n'
-                            ) +
-
-                            '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' +
-                            '    });\r\n' +
-                            '  }\r\n\r\n' +
-                            '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' +
-                            '  init();\r\n\r\n' +
-                            '});\r\n'
-                            );
                     }
                 });
 
+        }
+
+        private static fileWasCreated(newFileName, result) {
+
             var div = FilesList.appendFileToList(FilesList.filesPath + newFileName, true);
-            FilesList.makeFileCurrent(FilesList.filesPath + newFileName, div);
+            FilesList.makeFileCurrent(FilesList.filesPath + newFileName, div, false);
+
+            var wptype = result.isListForm ? "LFWP" : "XLV";
+            CSREditor.Panel.setEditorText(
+                '// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' +
+                '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
+                'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
+                '  function getBaseHtml(ctx) {\r\n' +
+                '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
+                '  }\r\n\r\n' +
+                '  function init() {\r\n\r\n' +
+                '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
+                '      // OnPreRender: function(ctx) { },\r\n\r\n' +
+                '      Templates: {\r\n\r\n' +
+
+                (result.isListForm ? '' :
+                '      //     View: function(ctx) { return ""; },\r\n' +
+                '      //     Header: function(ctx) { return ""; },\r\n' +
+                '      //     Body: function(ctx) { return ""; },\r\n' +
+                '      //     Group: function(ctx) { return ""; },\r\n' +
+                '      //     Item: function(ctx) { return ""; },\r\n'
+                ) +
+
+                '      //     Fields: {\r\n' +
+                '      //         "<fieldInternalName>": {\r\n' +
+                '      //             View: function(ctx) { return ""; },\r\n' +
+                '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                '      //             NewForm: function(ctx) { return ""; },\r\n' +
+                '      //         }\r\n' +
+                '      //     },\r\n' +
+
+                (result.isListForm ? '' :
+                '      //     Footer: function(ctx) { return ""; }\r\n'
+                ) +
+
+                '\r\n' +
+                '      },\r\n\r\n' +
+                '      // OnPostRender: function(ctx) { },\r\n\r\n' +
+
+                (result.isListForm ? '' :
+                '      BaseViewID: ' + result.baseViewId + ',\r\n'
+                ) +
+
+                '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' +
+                '    });\r\n' +
+                '  }\r\n\r\n' +
+                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' +
+                '  init();\r\n\r\n' +
+                '});\r\n'
+                );
+
         }
 
         public static refreshCSR(url: string, content: string) {

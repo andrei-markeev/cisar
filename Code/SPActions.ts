@@ -14,18 +14,16 @@ module CSREditor {
                 wpqId++;
             }
 
+            path = path.replace('%20', ' ');
+
             if (formContext || window["ctx"]) {
+
 
                 SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                     var context = SP.ClientContext.get_current();
 
-                    var creationInfo = new SP.FileCreationInformation();
-                    creationInfo.set_content(new SP.Base64EncodedByteArray());
-                    creationInfo.set_url(fileName);
-
-                    var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo);
-                    file.checkIn("Checked in by CSR Editor", SP.CheckinType.majorCheckIn);
-                    file.publish("Published by CSR Editor");
+                    var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
+                    context.load(files, "Include(Name)");
 
                     var wpid;
                     if (formContext)
@@ -40,26 +38,63 @@ module CSREditor {
                     var properties = webpart.get_properties();
                     context.load(properties);
 
-                    context.executeQueryAsync(function () {
-                        console.log('CSREditor: file created successfully.');
+                    var setupJsLink = function (properties) {
+                        var jsLinkString = (properties.get_item("JSLink") || "") + "|~sitecollection" + path + fileName;
+                        if (jsLinkString[0] == '|')
+                            jsLinkString = jsLinkString.substr(1);
+                        properties.set_item("JSLink", jsLinkString);
+                        webpartDef.saveWebPartChanges();
+                    }
 
-                        if (window["ctx"] || formContext) {
-                            var jsLinkString = (properties.get_item("JSLink") || "") + "|~sitecollection" + path + fileName;
-                            if (jsLinkString[0] == '|')
-                                jsLinkString = jsLinkString.substr(1);
-                            properties.set_item("JSLink", jsLinkString);
-                            webpartDef.saveWebPartChanges();
+                    var fatalError = function (sender, args) {
+                        console.log('CSREditor fatal error: ' + args.get_message());
+                        window["g_Cisar_fileCreationResult"] = "error";
+                    }
+
+                    context.executeQueryAsync(function () {
+
+                        var enumerator = files.getEnumerator();
+                        var fileExists = false;
+                        while (enumerator.moveNext() && !fileExists) {
+                            if (enumerator.get_current().get_name().toLowerCase() == fileName.toLowerCase())
+                                fileExists = true;
+                        }
+
+                        if (fileExists) {
+
+                            var script = document.createElement("script");
+                            script.src = _spPageContextInfo.siteAbsoluteUrl + path + fileName;
+                            script.type = "text/javascript";
+                            document.head.appendChild(script);
+
+                            setupJsLink(properties);
+
                             context.executeQueryAsync(function () {
-                                console.log('CSREditor: file was successfully linked to the ' + (formContext ? 'LFWP' : 'XLV') + '.');
+                                window["g_Cisar_fileCreationResult"] = "existing";
+                                console.log('CSREditor: existing file has been successfully linked to the ' + (formContext ? 'LFWP' : 'XLV') + '.');
                             },
-                                function (sender, args) {
-                                    console.log('CSREditor error when linking file ' + fileName + ' to the ' + (formContext ? 'LFWP' : 'XLV') + ': ' + args.get_message());
-                                });
+                            fatalError);
+
+                        } else {
+
+                            var creationInfo = new SP.FileCreationInformation();
+                            creationInfo.set_content(new SP.Base64EncodedByteArray());
+                            creationInfo.set_url(fileName);
+                            var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo)
+                            file.checkIn("Checked in by CSR Editor", SP.CheckinType.majorCheckIn);
+                            file.publish("Published by CSR Editor");
+
+                            setupJsLink(properties);
+
+                            context.executeQueryAsync(function () {
+                                console.log('CSREditor: file has been created successfully.');
+                                window["g_Cisar_fileCreationResult"] = "created";
+                            },
+                            fatalError);
+
                         }
                     },
-                    function (sender, args) {
-                        console.log('CSREditor fatal error when saving file ' + fileName + ': ' + args.get_message());
-                    });
+                    fatalError);
                 });
             }
 
@@ -80,6 +115,16 @@ module CSREditor {
                 };
             else
                 return null;
+        }
+
+        public static checkFileCreated() {
+            if (window["g_Cisar_fileCreationResult"]) {
+                var result = window["g_Cisar_fileCreationResult"];
+                delete window["g_Cisar_fileCreationResult"];
+                return result;
+            }
+            else
+                return "wait";
         }
 
         public static performCSRRefresh(url: string, content: string) {
@@ -184,6 +229,8 @@ module CSREditor {
             }
 
             try {
+                if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1)
+                    window["ko"].cleanNode(document.body);
                 eval(content);
             }
             catch (err) {

@@ -17,6 +17,23 @@
     height: auto;
 }
 
+.fullscreen .editor > div {
+    left: 5px;
+}
+
+.separator {
+    position: absolute;
+    top: 10px;
+    left: 195px;
+    border-left:2px dotted #dedede;
+    bottom: 15px;
+    cursor: pointer;
+}
+
+.fullscreen .separator {
+    left: 2px;
+}
+
 .files {
     border: 1px solid #eee;
     position: absolute;
@@ -27,6 +44,10 @@
     padding: 2px 1px;
     overflow-y: scroll;
     overflow-x: hidden;
+}
+
+.fullscreen .files {
+    display: none;
 }
 
 .files > div {

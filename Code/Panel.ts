@@ -34,19 +34,26 @@
             Panel.instance.changed = false;
             Panel.instance.loadingData = false;
 
+            var loadUrlToEditor = function (url: string) {
+                localStorage["fileName"] = url;
+                CSREditor.ChromeIntegration.getResourceContent(url, Panel.instance.setEditorContent);
+            }
+
             ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
                     CSREditor.FilesList.siteUrl = siteUrl;
                     ChromeIntegration.getAllResources(siteUrl, function (urls: { [url: string]: number; }) {
-                        var loadUrlToEditor = function (url: string) {
-                            localStorage["fileName"] = url;
-                            CSREditor.ChromeIntegration.getResourceContent(url, Panel.instance.setEditorContent);
-                        }
+                        CSREditor.FilesList.addFiles(urls, loadUrlToEditor);
+                    });
+                    ChromeIntegration.setResourceAddedListener(siteUrl, function (url: string) {
+                        var urls: { [url: string]: number; } = {};
+                        urls[url] = 1;
                         CSREditor.FilesList.addFiles(urls, loadUrlToEditor);
                     });
                 }
             });
+
         }
 
         public static isChanged() {
@@ -220,18 +227,29 @@
                 $('.tooltip').remove();
             }
 
+            Panel.instance.checkSyntax(cm);
+
+        }
+
+        private static checkSyntaxTimeout: number = 0;
+        private checkSyntax(cm: CodeMirror.Doc) {
             var allMarkers = cm.getAllMarks();
             for (var i = 0; i < allMarkers.length; i++) {
                 allMarkers[i].clear();
             }
-            var errors = Panel.instance.typeScriptService.getErrors();
-            for (var i = 0; i < errors.length; i++) {
-                cm.markText(cm.posFromIndex(errors[i].start()), cm.posFromIndex(errors[i].start() + errors[i].length()), {
-                    className: "syntax-error",
-                    title: errors[i].text()
-                });
-            }
 
+            if (Panel.checkSyntaxTimeout)
+                clearTimeout(Panel.checkSyntaxTimeout);
+
+            Panel.checkSyntaxTimeout = setTimeout(function () {
+                var errors = Panel.instance.typeScriptService.getErrors();
+                for (var i = 0; i < errors.length; i++) {
+                    cm.markText(cm.posFromIndex(errors[i].start()), cm.posFromIndex(errors[i].start() + errors[i].length()), {
+                        className: "syntax-error",
+                        title: errors[i].text()
+                    });
+                }
+            }, 1500);
         }
 
     }
