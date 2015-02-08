@@ -43,11 +43,13 @@ module CSREditor {
             };
 
             var removeButton = document.createElement('a');
-            removeButton.onclick = function () {
+            removeButton.onclick = function (ev: MouseEvent) {
                 if (confirm('Sure to move the file to recycle bin and unbind it from the webpart?')) {
                     FilesList.removeFile(url);
                     div.parentNode.removeChild(div);
                 }
+                ev.preventDefault();
+                ev.stopPropagation();
             };
             removeButton.className = "remove-button"
             removeButton.innerHTML = "╳";
@@ -68,9 +70,6 @@ module CSREditor {
         }
 
         private static makeFileCurrent(url: string, div: HTMLDivElement, loadContent: boolean = true) {
-            if (CSREditor.Panel.isChanged() && !confirm("Changes to the current file are not saved! Are you sure want to open another file and lose the changes?"))
-                return;
-
             var divs = document.querySelectorAll(".files > div.current");
             for (var j = 0; j < divs.length; j++) {
                 (<HTMLDivElement>divs[j]).className = null;
@@ -171,11 +170,12 @@ module CSREditor {
 
         private static fileWasCreated(newFileName, result) {
 
-            var div = FilesList.appendFileToList(FilesList.filesPath + newFileName, true);
-            FilesList.makeFileCurrent(FilesList.filesPath + newFileName, div, false);
+            var fullUrl = (FilesList.siteUrl + FilesList.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
+            var div = FilesList.appendFileToList(fullUrl, true);
+            FilesList.makeFileCurrent(fullUrl, div, false);
 
             var wptype = result.isListForm ? "LFWP" : "XLV";
-            CSREditor.Panel.setEditorText(
+            CSREditor.Panel.setEditorText(fullUrl,
                 '// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' +
                 '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
                 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
@@ -261,7 +261,7 @@ module CSREditor {
             url = Utils.cutOffQueryString(url.replace(FilesList.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
-            CSREditor.Panel.setEditorText('');
+            CSREditor.Panel.setEditorText(null, '');
             CSREditor.ChromeIntegration.eval("(" + SPActions.removeFileFromSharePoint + ")('" + url + "');");
         }
 

@@ -228,14 +228,48 @@ module CSREditor {
                 csrContext.DebugMode = false;
             }
 
+            if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {
+                window["ko"].cleanNode(document.body);
+            }
+
+            if ($get('csrErrorDiv') != null)
+                document.body.removeChild($get('csrErrorDiv'));
+            if ($get('csrErrorDivText') != null)
+                document.body.removeChild($get('csrErrorDivText'));
+
             try {
-                if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1)
-                    window["ko"].cleanNode(document.body);
                 eval(content);
             }
             catch (err) {
                 console.log("Error when evaluating the CSR template code!");
                 console.log(err);
+
+                var div = document.createElement('div');
+                div.id = "csrErrorDiv";
+                div.style.backgroundColor = "#300";
+                div.style.opacity = "0.5";
+                div.style.position = "fixed";
+                div.style.top = "0";
+                div.style.left = "0";
+                div.style.bottom = "0";
+                div.style.right = "0";
+                div.style.zIndex = "101";
+                document.body.appendChild(div);
+
+                var textDiv = document.createElement('div');
+                textDiv.id = "csrErrorDivText";
+                textDiv.style.position = "fixed";
+                textDiv.style.backgroundColor = "#fff";
+                textDiv.style.border = "2px solid #000";
+                textDiv.style.padding = "10px 15px";
+                textDiv.style.width = "300px";
+                textDiv.style.top = "200px";
+                textDiv.style.left = "0";
+                textDiv.style.right = "0";
+                textDiv.style.margin = "0 auto";
+                textDiv.style.zIndex = "102";
+                textDiv.innerHTML = "Error when evaluating the CSR template code: " + err["message"];
+                document.body.appendChild(textDiv);
             }
             finally {
                 SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
@@ -313,7 +347,7 @@ module CSREditor {
                         properties.set_item("JSLink", jsLinkString);
                         webpartDef.saveWebPartChanges();
                         context.executeQueryAsync(function () {
-                            console.log('CSREditor: file was successfully moved to recycle bin and removed from the XLV/LFWP.');
+                            console.log('CSREditor: file ' + fileName + ' was successfully moved to recycle bin and removed from the XLV/LFWP.');
                         },
                         function (sender, args) {
                             console.log('CSREditor error when unlinking file ' + fileName + ' from the XLV/LFWP: ' + args.get_message());

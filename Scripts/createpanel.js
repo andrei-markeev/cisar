@@ -1,1 +1,1 @@
-﻿chrome.devtools.panels.create("CSR Editor", "", "../index.html", function() {});
+﻿chrome.devtools.panels.create("Cisar", "", "../index.html", function() {});

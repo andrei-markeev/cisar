@@ -119,11 +119,13 @@ var CSREditor;
             };
 
             var removeButton = document.createElement('a');
-            removeButton.onclick = function () {
+            removeButton.onclick = function (ev) {
                 if (confirm('Sure to move the file to recycle bin and unbind it from the webpart?')) {
                     FilesList.removeFile(url);
                     div.parentNode.removeChild(div);
                 }
+                ev.preventDefault();
+                ev.stopPropagation();
             };
             removeButton.className = "remove-button";
             removeButton.innerHTML = "╳";
@@ -145,9 +147,6 @@ var CSREditor;
 
         FilesList.makeFileCurrent = function (url, div, loadContent) {
             if (typeof loadContent === "undefined") { loadContent = true; }
-            if (CSREditor.Panel.isChanged() && !confirm("Changes to the current file are not saved! Are you sure want to open another file and lose the changes?"))
-                return;
-
             var divs = document.querySelectorAll(".files > div.current");
             for (var j = 0; j < divs.length; j++) {
                 divs[j].className = null;
@@ -227,11 +226,12 @@ var CSREditor;
         };
 
         FilesList.fileWasCreated = function (newFileName, result) {
-            var div = FilesList.appendFileToList(FilesList.filesPath + newFileName, true);
-            FilesList.makeFileCurrent(FilesList.filesPath + newFileName, div, false);
+            var fullUrl = (FilesList.siteUrl + FilesList.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
+            var div = FilesList.appendFileToList(fullUrl, true);
+            FilesList.makeFileCurrent(fullUrl, div, false);
 
             var wptype = result.isListForm ? "LFWP" : "XLV";
-            CSREditor.Panel.setEditorText('// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' + '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' + 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' + '  function getBaseHtml(ctx) {\r\n' + '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' + '  }\r\n\r\n' + '  function init() {\r\n\r\n' + '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' + '      // OnPreRender: function(ctx) { },\r\n\r\n' + '      Templates: {\r\n\r\n' + (result.isListForm ? '' : '      //     View: function(ctx) { return ""; },\r\n' + '      //     Header: function(ctx) { return ""; },\r\n' + '      //     Body: function(ctx) { return ""; },\r\n' + '      //     Group: function(ctx) { return ""; },\r\n' + '      //     Item: function(ctx) { return ""; },\r\n') + '      //     Fields: {\r\n' + '      //         "<fieldInternalName>": {\r\n' + '      //             View: function(ctx) { return ""; },\r\n' + '      //             EditForm: function(ctx) { return ""; },\r\n' + '      //             DisplayForm: function(ctx) { return ""; },\r\n' + '      //             NewForm: function(ctx) { return ""; },\r\n' + '      //         }\r\n' + '      //     },\r\n' + (result.isListForm ? '' : '      //     Footer: function(ctx) { return ""; }\r\n') + '\r\n' + '      },\r\n\r\n' + '      // OnPostRender: function(ctx) { },\r\n\r\n' + (result.isListForm ? '' : '      BaseViewID: ' + result.baseViewId + ',\r\n') + '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' + '    });\r\n' + '  }\r\n\r\n' + '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' + '  init();\r\n\r\n' + '});\r\n');
+            CSREditor.Panel.setEditorText(fullUrl, '// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' + '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' + 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' + '  function getBaseHtml(ctx) {\r\n' + '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' + '  }\r\n\r\n' + '  function init() {\r\n\r\n' + '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' + '      // OnPreRender: function(ctx) { },\r\n\r\n' + '      Templates: {\r\n\r\n' + (result.isListForm ? '' : '      //     View: function(ctx) { return ""; },\r\n' + '      //     Header: function(ctx) { return ""; },\r\n' + '      //     Body: function(ctx) { return ""; },\r\n' + '      //     Group: function(ctx) { return ""; },\r\n' + '      //     Item: function(ctx) { return ""; },\r\n') + '      //     Fields: {\r\n' + '      //         "<fieldInternalName>": {\r\n' + '      //             View: function(ctx) { return ""; },\r\n' + '      //             EditForm: function(ctx) { return ""; },\r\n' + '      //             DisplayForm: function(ctx) { return ""; },\r\n' + '      //             NewForm: function(ctx) { return ""; },\r\n' + '      //         }\r\n' + '      //     },\r\n' + (result.isListForm ? '' : '      //     Footer: function(ctx) { return ""; }\r\n') + '\r\n' + '      },\r\n\r\n' + '      // OnPostRender: function(ctx) { },\r\n\r\n' + (result.isListForm ? '' : '      BaseViewID: ' + result.baseViewId + ',\r\n') + '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' + '    });\r\n' + '  }\r\n\r\n' + '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' + '  init();\r\n\r\n' + '});\r\n');
         };
 
         FilesList.refreshCSR = function (url, content) {
@@ -266,7 +266,7 @@ var CSREditor;
             url = CSREditor.Utils.cutOffQueryString(url.replace(FilesList.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
-            CSREditor.Panel.setEditorText('');
+            CSREditor.Panel.setEditorText(null, '');
             CSREditor.ChromeIntegration.eval("(" + CSREditor.SPActions.removeFileFromSharePoint + ")('" + url + "');");
         };
         FilesList.filesPath = "/Style Library/";
@@ -315,9 +315,12 @@ var CSREditor;
             Panel.instance.changed = false;
             Panel.instance.loadingData = false;
 
+            localStorage["fileName"] = null;
+
             var loadUrlToEditor = function (url) {
-                localStorage["fileName"] = url;
-                CSREditor.ChromeIntegration.getResourceContent(url, Panel.instance.setEditorContent);
+                CSREditor.ChromeIntegration.getResourceContent(url, function (text) {
+                    Panel.setEditorText(url, text);
+                });
             };
 
             CSREditor.ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
@@ -344,7 +347,8 @@ var CSREditor;
             var editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
                 lineNumbers: true,
                 matchBrackets: true,
-                mode: "text/typescript"
+                mode: "text/typescript",
+                readOnly: true
             });
 
             editor.on("cursorActivity", function (cm) {
@@ -359,15 +363,10 @@ var CSREditor;
             return editor;
         };
 
-        Panel.prototype.setEditorContent = function (text) {
-            Panel.instance.doNotSave = true;
+        Panel.setEditorText = function (url, text) {
+            localStorage["fileName"] = url;
             Panel.instance.editorCM.getDoc().setValue(text);
-            Panel.instance.changed = false;
-            Panel.instance.doNotSave = false;
-        };
-
-        Panel.setEditorText = function (text) {
-            Panel.instance.editorCM.getDoc().setValue(text);
+            Panel.instance.editorCM.setOption("readOnly", url == null);
         };
 
         Panel.prototype.showCodeMirrorHint = function (cm, list) {
@@ -485,9 +484,11 @@ var CSREditor;
             Panel.instance.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
             if (Panel.instance.doNotSave == false) {
                 var url = localStorage["fileName"];
-                CSREditor.FilesList.refreshCSR(url, cm.getValue());
-                CSREditor.FilesList.saveChangesToFile(url, cm.getValue());
-                Panel.instance.changed = false;
+                if (url != "null") {
+                    CSREditor.FilesList.refreshCSR(url, cm.getValue());
+                    CSREditor.FilesList.saveChangesToFile(url, cm.getValue());
+                    Panel.instance.changed = false;
+                }
             }
 
             if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {
@@ -744,13 +745,47 @@ var CSREditor;
                 csrContext.DebugMode = false;
             };
 
+            if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {
+                window["ko"].cleanNode(document.body);
+            }
+
+            if ($get('csrErrorDiv') != null)
+                document.body.removeChild($get('csrErrorDiv'));
+            if ($get('csrErrorDivText') != null)
+                document.body.removeChild($get('csrErrorDivText'));
+
             try  {
-                if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1)
-                    window["ko"].cleanNode(document.body);
                 eval(content);
             } catch (err) {
                 console.log("Error when evaluating the CSR template code!");
                 console.log(err);
+
+                var div = document.createElement('div');
+                div.id = "csrErrorDiv";
+                div.style.backgroundColor = "#300";
+                div.style.opacity = "0.5";
+                div.style.position = "fixed";
+                div.style.top = "0";
+                div.style.left = "0";
+                div.style.bottom = "0";
+                div.style.right = "0";
+                div.style.zIndex = "101";
+                document.body.appendChild(div);
+
+                var textDiv = document.createElement('div');
+                textDiv.id = "csrErrorDivText";
+                textDiv.style.position = "fixed";
+                textDiv.style.backgroundColor = "#fff";
+                textDiv.style.border = "2px solid #000";
+                textDiv.style.padding = "10px 15px";
+                textDiv.style.width = "300px";
+                textDiv.style.top = "200px";
+                textDiv.style.left = "0";
+                textDiv.style.right = "0";
+                textDiv.style.margin = "0 auto";
+                textDiv.style.zIndex = "102";
+                textDiv.innerHTML = "Error when evaluating the CSR template code: " + err["message"];
+                document.body.appendChild(textDiv);
             } finally {
                 SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
             }
@@ -818,7 +853,7 @@ var CSREditor;
                         properties.set_item("JSLink", jsLinkString);
                         webpartDef.saveWebPartChanges();
                         context.executeQueryAsync(function () {
-                            console.log('CSREditor: file was successfully moved to recycle bin and removed from the XLV/LFWP.');
+                            console.log('CSREditor: file ' + fileName + ' was successfully moved to recycle bin and removed from the XLV/LFWP.');
                         }, function (sender, args) {
                             console.log('CSREditor error when unlinking file ' + fileName + ' from the XLV/LFWP: ' + args.get_message());
                         });

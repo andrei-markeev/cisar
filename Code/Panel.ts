@@ -34,9 +34,12 @@
             Panel.instance.changed = false;
             Panel.instance.loadingData = false;
 
+            localStorage["fileName"] = null;
+
             var loadUrlToEditor = function (url: string) {
-                localStorage["fileName"] = url;
-                CSREditor.ChromeIntegration.getResourceContent(url, Panel.instance.setEditorContent);
+                CSREditor.ChromeIntegration.getResourceContent(url, function (text: string) {
+                    Panel.setEditorText(url, text);
+                });
             }
 
             ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
@@ -65,9 +68,10 @@
             var editor = CodeMirror.fromTextArea(<HTMLTextAreaElement>document.getElementById("editor"), {
                 lineNumbers: true,
                 matchBrackets: true,
-                mode: "text/typescript"
+                mode: "text/typescript",
+                readOnly: true
             });
-            
+
             editor.on("cursorActivity", function (cm) {
                 if (cm.getDoc().getCursor().line != Panel.instance.tooltipLastPos.line || cm.getDoc().getCursor().ch < Panel.instance.tooltipLastPos.ch) {
                     $('.tooltip').remove();
@@ -78,15 +82,10 @@
             return editor;
         }
 
-        private setEditorContent(text: string) {
-            Panel.instance.doNotSave = true;
+        public static setEditorText(url:string, text: string) {
+            localStorage["fileName"] = url;
             Panel.instance.editorCM.getDoc().setValue(text);
-            Panel.instance.changed = false;
-            Panel.instance.doNotSave = false;
-        }
-
-        public static setEditorText(text: string) {
-            Panel.instance.editorCM.getDoc().setValue(text);
+            Panel.instance.editorCM.setOption("readOnly", url == null);
         }
 
         private showCodeMirrorHint(cm: CodeMirror.Doc, list) {
@@ -211,9 +210,11 @@
             if (Panel.instance.doNotSave == false) {
 
                 var url = localStorage["fileName"];
-                FilesList.refreshCSR(url, cm.getValue());
-                FilesList.saveChangesToFile(url, cm.getValue());
-                Panel.instance.changed = false;
+                if (url != "null") {
+                    FilesList.refreshCSR(url, cm.getValue());
+                    FilesList.saveChangesToFile(url, cm.getValue());
+                    Panel.instance.changed = false;
+                }
             }
 
             if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {

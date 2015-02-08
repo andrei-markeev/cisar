@@ -16386,8 +16386,8 @@ declare module SPClientTemplates {
         CurrentSelectedItems?: any;
         CurrentUICultureName?: string;
         ListTemplateType?: number;
-        OnPostRender?: any;
-        OnPreRender?: any;
+        OnPostRender?: (renderContext: RenderContext) => string;
+        OnPreRender?: (renderContext: RenderContext) => string;
         onRefreshFailed?: any;
         RenderBody?: (renderContext: RenderContext) => string;
         RenderFieldByName?: (renderContext: RenderContext, fieldName: string) => string;
@@ -16484,11 +16484,11 @@ declare module SPClientTemplates {
         /** Template overrides */
         Templates?: TemplateOverrides;
 
-        /** �allbacks called before rendering starts. Can be function (ctx: RenderContext) => void or array of functions.*/
-        OnPreRender?: any;
+        /** Callbacks called before rendering starts. Can be function (ctx: RenderContext) => void or array of functions.*/
+        OnPreRender?: (renderContext: RenderContext_Form) => void;
 
-        /** �allbacks called after rendered html inserted into DOM. Can be function (ctx: RenderContext) => void or array of functions.*/
-        OnPostRender?: any;
+        /** Callbacks called after rendered html inserted into DOM. Can be function (ctx: RenderContext) => void or array of functions.*/
+        OnPostRender?: (renderContext: RenderContext_Form) => void;
 
         /** View style (SPView.StyleID) for which the templates should be applied. 
             If not defined, the templates will be applied only to default view style. */
