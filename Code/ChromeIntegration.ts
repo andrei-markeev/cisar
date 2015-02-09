@@ -47,7 +47,7 @@
             });
         }
 
-        public static setResourceContent(url: string, content, callback) {
+        public static setResourceContent(url: string, content, callback?) {
             chrome.devtools.inspectedWindow.getResources(function (resources) {
                 url = Utils.cutOffQueryString(url.toLowerCase().replace(' ', '%20'));
                 for (var i = 0; i < resources.length; i++) {

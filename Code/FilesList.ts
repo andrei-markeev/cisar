@@ -171,8 +171,11 @@ module CSREditor {
         private static fileWasCreated(newFileName, result) {
 
             var fullUrl = (FilesList.siteUrl + FilesList.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
-            var div = FilesList.appendFileToList(fullUrl, true);
+            var div = <HTMLDivElement>document.querySelector('.files div[title="' + fullUrl + '"]');
+            if (div == null)
+                div = FilesList.appendFileToList(fullUrl, true);
             FilesList.makeFileCurrent(fullUrl, div, false);
+            FilesList.files[fullUrl] = 1;
 
             var wptype = result.isListForm ? "LFWP" : "XLV";
             CSREditor.Panel.setEditorText(fullUrl,

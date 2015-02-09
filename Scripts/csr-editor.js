@@ -227,8 +227,11 @@ var CSREditor;
 
         FilesList.fileWasCreated = function (newFileName, result) {
             var fullUrl = (FilesList.siteUrl + FilesList.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
-            var div = FilesList.appendFileToList(fullUrl, true);
+            var div = document.querySelector('.files div[title="' + fullUrl + '"]');
+            if (div == null)
+                div = FilesList.appendFileToList(fullUrl, true);
             FilesList.makeFileCurrent(fullUrl, div, false);
+            FilesList.files[fullUrl] = 1;
 
             var wptype = result.isListForm ? "LFWP" : "XLV";
             CSREditor.Panel.setEditorText(fullUrl, '// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' + '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' + 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' + '  function getBaseHtml(ctx) {\r\n' + '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' + '  }\r\n\r\n' + '  function init() {\r\n\r\n' + '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' + '      // OnPreRender: function(ctx) { },\r\n\r\n' + '      Templates: {\r\n\r\n' + (result.isListForm ? '' : '      //     View: function(ctx) { return ""; },\r\n' + '      //     Header: function(ctx) { return ""; },\r\n' + '      //     Body: function(ctx) { return ""; },\r\n' + '      //     Group: function(ctx) { return ""; },\r\n' + '      //     Item: function(ctx) { return ""; },\r\n') + '      //     Fields: {\r\n' + '      //         "<fieldInternalName>": {\r\n' + '      //             View: function(ctx) { return ""; },\r\n' + '      //             EditForm: function(ctx) { return ""; },\r\n' + '      //             DisplayForm: function(ctx) { return ""; },\r\n' + '      //             NewForm: function(ctx) { return ""; },\r\n' + '      //         }\r\n' + '      //     },\r\n' + (result.isListForm ? '' : '      //     Footer: function(ctx) { return ""; }\r\n') + '\r\n' + '      },\r\n\r\n' + '      // OnPostRender: function(ctx) { },\r\n\r\n' + (result.isListForm ? '' : '      BaseViewID: ' + result.baseViewId + ',\r\n') + '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' + '    });\r\n' + '  }\r\n\r\n' + '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' + '  init();\r\n\r\n' + '});\r\n');
@@ -485,8 +488,10 @@ var CSREditor;
             if (Panel.instance.doNotSave == false) {
                 var url = localStorage["fileName"];
                 if (url != "null") {
-                    CSREditor.FilesList.refreshCSR(url, cm.getValue());
-                    CSREditor.FilesList.saveChangesToFile(url, cm.getValue());
+                    var text = cm.getValue();
+                    CSREditor.FilesList.refreshCSR(url, text);
+                    CSREditor.FilesList.saveChangesToFile(url, text);
+                    CSREditor.ChromeIntegration.setResourceContent(url, text);
                     Panel.instance.changed = false;
                 }
             }
@@ -613,6 +618,11 @@ var CSREditor;
                             context.executeQueryAsync(function () {
                                 console.log('CSREditor: file has been created successfully.');
                                 window["g_Cisar_fileCreationResult"] = "created";
+
+                                var script = document.createElement("script");
+                                script.src = _spPageContextInfo.siteAbsoluteUrl + path + fileName;
+                                script.type = "text/javascript";
+                                document.head.appendChild(script);
                             }, fatalError);
                         }
                     }, fatalError);

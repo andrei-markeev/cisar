@@ -89,6 +89,11 @@ module CSREditor {
                             context.executeQueryAsync(function () {
                                 console.log('CSREditor: file has been created successfully.');
                                 window["g_Cisar_fileCreationResult"] = "created";
+
+                                var script = document.createElement("script");
+                                script.src = _spPageContextInfo.siteAbsoluteUrl + path + fileName;
+                                script.type = "text/javascript";
+                                document.head.appendChild(script);
                             },
                             fatalError);
 

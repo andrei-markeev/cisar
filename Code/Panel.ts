@@ -211,8 +211,10 @@
 
                 var url = localStorage["fileName"];
                 if (url != "null") {
-                    FilesList.refreshCSR(url, cm.getValue());
-                    FilesList.saveChangesToFile(url, cm.getValue());
+                    var text = cm.getValue();
+                    FilesList.refreshCSR(url, text);
+                    FilesList.saveChangesToFile(url, text);
+                    ChromeIntegration.setResourceContent(url, text);
                     Panel.instance.changed = false;
                 }
             }
