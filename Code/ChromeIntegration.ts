@@ -53,7 +53,7 @@
                 for (var i = 0; i < resources.length; i++) {
                     var resUrl = Utils.cutOffQueryString(resources[i].url.toLowerCase().replace(' ', '%20'));
                     if (resUrl == url || (url[0] == "/" && Utils.endsWith(resUrl, url))) {
-                        resources[i].setContent(content, true, callback);
+                        resources[i].setContent(content, false, callback);
                         return;
                     }
                 }

@@ -224,7 +224,8 @@ module CSREditor {
                 '  }\r\n\r\n' +
                 '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' +
                 '  init();\r\n\r\n' +
-                '});\r\n'
+                '});\r\n',
+                true
                 );
 
         }

@@ -16,8 +16,8 @@
         private typeScriptService: CSREditor.TypeScriptService;
         private loadingData = false;
         private tooltipLastPos = { line: -1, ch: -1 };
-        private changed = false;
-        private doNotSave = false;
+        private fileName = null;
+        private newFilesContent = {};
 
         private static instance: CSREditor.Panel;
         
@@ -31,15 +31,16 @@
             Panel.instance.typeScriptService = new CSREditor.TypeScriptService();
             Panel.instance.editorCM = Panel.instance.initEditor();
 
-            Panel.instance.changed = false;
             Panel.instance.loadingData = false;
 
-            localStorage["fileName"] = null;
-
             var loadUrlToEditor = function (url: string) {
-                CSREditor.ChromeIntegration.getResourceContent(url, function (text: string) {
-                    Panel.setEditorText(url, text);
-                });
+                if (url in Panel.instance.newFilesContent)
+                    Panel.setEditorText(url, Panel.instance.newFilesContent[url]);
+                else {
+                    CSREditor.ChromeIntegration.getResourceContent(url, function (text: string) {
+                        Panel.setEditorText(url, text);
+                    });
+                }
             }
 
             ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
@@ -59,17 +60,16 @@
 
         }
 
-        public static isChanged() {
-            return Panel.instance.changed;
-        }
-
         private initEditor() {
 
             var editor = CodeMirror.fromTextArea(<HTMLTextAreaElement>document.getElementById("editor"), {
                 lineNumbers: true,
                 matchBrackets: true,
                 mode: "text/typescript",
-                readOnly: true
+                readOnly: true,
+                extraKeys: {
+                    "Ctrl-K": "toggleComment"
+                }
             });
 
             editor.on("cursorActivity", function (cm) {
@@ -82,10 +82,12 @@
             return editor;
         }
 
-        public static setEditorText(url:string, text: string) {
-            localStorage["fileName"] = url;
+        public static setEditorText(url:string, text: string, newlyCreated: boolean = false) {
+            Panel.instance.fileName = url;
             Panel.instance.editorCM.getDoc().setValue(text);
             Panel.instance.editorCM.setOption("readOnly", url == null);
+            if (newlyCreated)
+                Panel.instance.newFilesContent[url] = text;
         }
 
         private showCodeMirrorHint(cm: CodeMirror.Doc, list) {
@@ -205,18 +207,17 @@
             if (!changeObj)
                 return;
 
-            Panel.instance.changed = true;
             Panel.instance.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
-            if (Panel.instance.doNotSave == false) {
 
-                var url = localStorage["fileName"];
-                if (url != "null") {
-                    var text = cm.getValue();
-                    FilesList.refreshCSR(url, text);
-                    FilesList.saveChangesToFile(url, text);
+            var url = Panel.instance.fileName;
+            if (url != null) {
+                var text = cm.getValue();
+                FilesList.refreshCSR(url, text);
+                FilesList.saveChangesToFile(url, text);
+                if (url in Panel.instance.newFilesContent)
+                    Panel.instance.newFilesContent[url] = text;
+                else
                     ChromeIntegration.setResourceContent(url, text);
-                    Panel.instance.changed = false;
-                }
             }
 
             if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {

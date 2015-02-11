@@ -31,6 +31,7 @@
     <Content Include="Scripts\base64v1_0.js" />
     <Content Include="Scripts\bootstrap.min.js" />
     <TypeScriptCompile Include="Code\FilesList.ts" />
+    <Content Include="Scripts\codemirror\comment.js" />
     <Content Include="Scripts\csr-editor.js" />
     <Content Include="Scripts\codemirror\codemirror.js" />
     <Content Include="Scripts\codemirror\mode\javascript.js" />

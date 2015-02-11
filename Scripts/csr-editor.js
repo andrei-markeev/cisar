@@ -50,7 +50,7 @@
                 for (var i = 0; i < resources.length; i++) {
                     var resUrl = CSREditor.Utils.cutOffQueryString(resources[i].url.toLowerCase().replace(' ', '%20'));
                     if (resUrl == url || (url[0] == "/" && CSREditor.Utils.endsWith(resUrl, url))) {
-                        resources[i].setContent(content, true, callback);
+                        resources[i].setContent(content, false, callback);
                         return;
                     }
                 }
@@ -234,7 +234,7 @@ var CSREditor;
             FilesList.files[fullUrl] = 1;
 
             var wptype = result.isListForm ? "LFWP" : "XLV";
-            CSREditor.Panel.setEditorText(fullUrl, '// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' + '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' + 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' + '  function getBaseHtml(ctx) {\r\n' + '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' + '  }\r\n\r\n' + '  function init() {\r\n\r\n' + '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' + '      // OnPreRender: function(ctx) { },\r\n\r\n' + '      Templates: {\r\n\r\n' + (result.isListForm ? '' : '      //     View: function(ctx) { return ""; },\r\n' + '      //     Header: function(ctx) { return ""; },\r\n' + '      //     Body: function(ctx) { return ""; },\r\n' + '      //     Group: function(ctx) { return ""; },\r\n' + '      //     Item: function(ctx) { return ""; },\r\n') + '      //     Fields: {\r\n' + '      //         "<fieldInternalName>": {\r\n' + '      //             View: function(ctx) { return ""; },\r\n' + '      //             EditForm: function(ctx) { return ""; },\r\n' + '      //             DisplayForm: function(ctx) { return ""; },\r\n' + '      //             NewForm: function(ctx) { return ""; },\r\n' + '      //         }\r\n' + '      //     },\r\n' + (result.isListForm ? '' : '      //     Footer: function(ctx) { return ""; }\r\n') + '\r\n' + '      },\r\n\r\n' + '      // OnPostRender: function(ctx) { },\r\n\r\n' + (result.isListForm ? '' : '      BaseViewID: ' + result.baseViewId + ',\r\n') + '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' + '    });\r\n' + '  }\r\n\r\n' + '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' + '  init();\r\n\r\n' + '});\r\n');
+            CSREditor.Panel.setEditorText(fullUrl, '// The file has been created, saved into "' + FilesList.filesPath + '"\r\n' + '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' + 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' + '  function getBaseHtml(ctx) {\r\n' + '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' + '  }\r\n\r\n' + '  function init() {\r\n\r\n' + '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' + '      // OnPreRender: function(ctx) { },\r\n\r\n' + '      Templates: {\r\n\r\n' + (result.isListForm ? '' : '      //     View: function(ctx) { return ""; },\r\n' + '      //     Header: function(ctx) { return ""; },\r\n' + '      //     Body: function(ctx) { return ""; },\r\n' + '      //     Group: function(ctx) { return ""; },\r\n' + '      //     Item: function(ctx) { return ""; },\r\n') + '      //     Fields: {\r\n' + '      //         "<fieldInternalName>": {\r\n' + '      //             View: function(ctx) { return ""; },\r\n' + '      //             EditForm: function(ctx) { return ""; },\r\n' + '      //             DisplayForm: function(ctx) { return ""; },\r\n' + '      //             NewForm: function(ctx) { return ""; },\r\n' + '      //         }\r\n' + '      //     },\r\n' + (result.isListForm ? '' : '      //     Footer: function(ctx) { return ""; }\r\n') + '\r\n' + '      },\r\n\r\n' + '      // OnPostRender: function(ctx) { },\r\n\r\n' + (result.isListForm ? '' : '      BaseViewID: ' + result.baseViewId + ',\r\n') + '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' + '    });\r\n' + '  }\r\n\r\n' + '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + FilesList.filesPath + newFileName + '"), init);\r\n' + '  init();\r\n\r\n' + '});\r\n', true);
         };
 
         FilesList.refreshCSR = function (url, content) {
@@ -303,8 +303,8 @@ var CSREditor;
         function Panel() {
             this.loadingData = false;
             this.tooltipLastPos = { line: -1, ch: -1 };
-            this.changed = false;
-            this.doNotSave = false;
+            this.fileName = null;
+            this.newFilesContent = {};
         }
         Panel.start = function () {
             Panel.instance = new Panel();
@@ -315,15 +315,16 @@ var CSREditor;
             Panel.instance.typeScriptService = new CSREditor.TypeScriptService();
             Panel.instance.editorCM = Panel.instance.initEditor();
 
-            Panel.instance.changed = false;
             Panel.instance.loadingData = false;
 
-            localStorage["fileName"] = null;
-
             var loadUrlToEditor = function (url) {
-                CSREditor.ChromeIntegration.getResourceContent(url, function (text) {
-                    Panel.setEditorText(url, text);
-                });
+                if (url in Panel.instance.newFilesContent)
+                    Panel.setEditorText(url, Panel.instance.newFilesContent[url]);
+                else {
+                    CSREditor.ChromeIntegration.getResourceContent(url, function (text) {
+                        Panel.setEditorText(url, text);
+                    });
+                }
             };
 
             CSREditor.ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
@@ -342,16 +343,15 @@ var CSREditor;
             });
         };
 
-        Panel.isChanged = function () {
-            return Panel.instance.changed;
-        };
-
         Panel.prototype.initEditor = function () {
             var editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
                 lineNumbers: true,
                 matchBrackets: true,
                 mode: "text/typescript",
-                readOnly: true
+                readOnly: true,
+                extraKeys: {
+                    "Ctrl-K": "toggleComment"
+                }
             });
 
             editor.on("cursorActivity", function (cm) {
@@ -366,10 +366,13 @@ var CSREditor;
             return editor;
         };
 
-        Panel.setEditorText = function (url, text) {
-            localStorage["fileName"] = url;
+        Panel.setEditorText = function (url, text, newlyCreated) {
+            if (typeof newlyCreated === "undefined") { newlyCreated = false; }
+            Panel.instance.fileName = url;
             Panel.instance.editorCM.getDoc().setValue(text);
             Panel.instance.editorCM.setOption("readOnly", url == null);
+            if (newlyCreated)
+                Panel.instance.newFilesContent[url] = text;
         };
 
         Panel.prototype.showCodeMirrorHint = function (cm, list) {
@@ -483,17 +486,17 @@ var CSREditor;
             if (!changeObj)
                 return;
 
-            Panel.instance.changed = true;
             Panel.instance.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
-            if (Panel.instance.doNotSave == false) {
-                var url = localStorage["fileName"];
-                if (url != "null") {
-                    var text = cm.getValue();
-                    CSREditor.FilesList.refreshCSR(url, text);
-                    CSREditor.FilesList.saveChangesToFile(url, text);
+
+            var url = Panel.instance.fileName;
+            if (url != null) {
+                var text = cm.getValue();
+                CSREditor.FilesList.refreshCSR(url, text);
+                CSREditor.FilesList.saveChangesToFile(url, text);
+                if (url in Panel.instance.newFilesContent)
+                    Panel.instance.newFilesContent[url] = text;
+                else
                     CSREditor.ChromeIntegration.setResourceContent(url, text);
-                    Panel.instance.changed = false;
-                }
             }
 
             if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {
@@ -618,11 +621,6 @@ var CSREditor;
                             context.executeQueryAsync(function () {
                                 console.log('CSREditor: file has been created successfully.');
                                 window["g_Cisar_fileCreationResult"] = "created";
-
-                                var script = document.createElement("script");
-                                script.src = _spPageContextInfo.siteAbsoluteUrl + path + fileName;
-                                script.type = "text/javascript";
-                                document.head.appendChild(script);
                             }, fatalError);
                         }
                     }, fatalError);
