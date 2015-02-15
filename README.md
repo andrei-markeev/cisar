@@ -3,6 +3,8 @@ Cisar
 
 Google Chrome browser extension that adds a tab to Developer Tools, where you can create SharePoint Client Side Rendering customizations and they will be applied as-you-type to the underlying page.
 
+![Screenshot](https://raw.github.com/andrei-markeev/cisar/master/screenshot.png)
+
 Installing
 ----------
 You can install the extension manually from the source code.
@@ -27,5 +29,7 @@ Important: extension will save and publish your file continously. This means tha
 Files can be created in Style Library only. Library that hosts js files that are edited should have versioning (major+minor versions) and "require checkout" setting enabled for saving to work.
 
 If there're errors when saving and editing files, they're logged in the "Console" tab in Developer Tools.
+
+Also it is usually a good idea to disable caching ("Network" tab -> Disable cache checkbox).
 
 Only CSR for list views and CSR for list forms modes are currently supported. List views in Quick Edit mode, as well as Search results, are not supported (but I'm working on it). Display Templates also are not supported, but planned.
