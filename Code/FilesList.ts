@@ -139,7 +139,7 @@ module CSREditor {
 
             CSREditor.ChromeIntegration.eval(
 
-                "(" + SPActions.createFileInSharePoint + ")('" + FilesList.filesPath.replace(' ', '%20').toLowerCase() + "', '" + newFileName + "');",
+                SPActions.getCode_createFileInSharePoint(FilesList.filesPath.replace(' ', '%20').toLowerCase(), newFileName),
 
                 function (result, errorInfo) {
                     if (!errorInfo) {
@@ -147,7 +147,9 @@ module CSREditor {
                         var handle = setInterval(function () {
 
                             CSREditor.ChromeIntegration.eval(
-                                "(" + SPActions.checkFileCreated + ")();",
+
+                                SPActions.getCode_checkFileCreated(),
+
                                 function (result2, errorInfo) {
                                     if (errorInfo)
                                         console.log(errorInfo);
@@ -236,7 +238,9 @@ module CSREditor {
             if (url[0] != '/')
                 url = '/' + url;
 
-            CSREditor.ChromeIntegration.eval("(" + SPActions.performCSRRefresh + ")('" + url + "', '" + content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'") + "');");
+            content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'");
+
+            CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content));
 
         }
 
@@ -253,7 +257,7 @@ module CSREditor {
                     for (var fileUrl in FilesList.savingQueue) {
                         FilesList.savingQueue[fileUrl].cooldown--;
                         if (FilesList.savingQueue[fileUrl].cooldown <= 0) {
-                            CSREditor.ChromeIntegration.eval("(" + SPActions.saveFileToSharePoint + ")('" + fileUrl + "', '" + B64.encode(FilesList.savingQueue[fileUrl].content) + "');");
+                            CSREditor.ChromeIntegration.eval(SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(FilesList.savingQueue[fileUrl].content)));
                             delete FilesList.savingQueue[fileUrl];
                         }
                     }
@@ -266,7 +270,7 @@ module CSREditor {
             if (url[0] != '/')
                 url = '/' + url;
             CSREditor.Panel.setEditorText(null, '');
-            CSREditor.ChromeIntegration.eval("(" + SPActions.removeFileFromSharePoint + ")('" + url + "');");
+            CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url));
         }
 
 

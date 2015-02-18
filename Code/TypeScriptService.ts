@@ -90,6 +90,10 @@
             this.tsHost.scriptChanged(newText, startPos, changeLength);
         }
 
+        public getSymbolInfo(position) {
+            return this.tsServiceShim.languageService["getSymbolInfoAtPosition"]('csr-editor.ts', position);
+        }
+
         public getCompletions(position) {
             return this.tsServiceShim.languageService.getCompletionsAtPosition('csr-editor.ts', position, true);
         }

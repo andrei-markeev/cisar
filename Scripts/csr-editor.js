@@ -214,10 +214,10 @@ var CSREditor;
         };
 
         FilesList.performNewFileCreation = function (newFileName) {
-            CSREditor.ChromeIntegration.eval("(" + CSREditor.SPActions.createFileInSharePoint + ")('" + FilesList.filesPath.replace(' ', '%20').toLowerCase() + "', '" + newFileName + "');", function (result, errorInfo) {
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_createFileInSharePoint(FilesList.filesPath.replace(' ', '%20').toLowerCase(), newFileName), function (result, errorInfo) {
                 if (!errorInfo) {
                     var handle = setInterval(function () {
-                        CSREditor.ChromeIntegration.eval("(" + CSREditor.SPActions.checkFileCreated + ")();", function (result2, errorInfo) {
+                        CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkFileCreated(), function (result2, errorInfo) {
                             if (errorInfo)
                                 console.log(errorInfo);
                             else if (result2 != "wait") {
@@ -250,7 +250,9 @@ var CSREditor;
             if (url[0] != '/')
                 url = '/' + url;
 
-            CSREditor.ChromeIntegration.eval("(" + CSREditor.SPActions.performCSRRefresh + ")('" + url + "', '" + content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'") + "');");
+            content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'");
+
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_performCSRRefresh(url, content));
         };
 
         FilesList.saveChangesToFile = function (url, content) {
@@ -265,7 +267,7 @@ var CSREditor;
                     for (var fileUrl in FilesList.savingQueue) {
                         FilesList.savingQueue[fileUrl].cooldown--;
                         if (FilesList.savingQueue[fileUrl].cooldown <= 0) {
-                            CSREditor.ChromeIntegration.eval("(" + CSREditor.SPActions.saveFileToSharePoint + ")('" + fileUrl + "', '" + B64.encode(FilesList.savingQueue[fileUrl].content) + "');");
+                            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(FilesList.savingQueue[fileUrl].content)));
                             delete FilesList.savingQueue[fileUrl];
                         }
                     }
@@ -278,7 +280,7 @@ var CSREditor;
             if (url[0] != '/')
                 url = '/' + url;
             CSREditor.Panel.setEditorText(null, '');
-            CSREditor.ChromeIntegration.eval("(" + CSREditor.SPActions.removeFileFromSharePoint + ")('" + url + "');");
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_removeFileFromSharePoint(url));
         };
         FilesList.filesPath = "/Style Library/";
         FilesList.siteUrl = "";
@@ -292,25 +294,169 @@ var CSREditor;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
 (function (CSREditor) {
-    var Utils = (function () {
-        function Utils() {
+    var IntellisenseHelper = (function () {
+        function IntellisenseHelper(typeScriptService, editor) {
+            var _this = this;
+            this.tooltipLastPos = { line: -1, ch: -1 };
+            this.fieldNames = [];
+            this.typeScriptService = typeScriptService;
+            editor.on("cursorActivity", function (cm) {
+                if (cm.getDoc().getCursor().line != _this.tooltipLastPos.line || cm.getDoc().getCursor().ch < _this.tooltipLastPos.ch) {
+                    $('.tooltip').remove();
+                }
+            });
         }
-        Utils.endsWith = function (s, suffix) {
-            return s.indexOf(suffix, s.length - suffix.length) !== -1;
+        IntellisenseHelper.prototype.setFieldInternalNames = function (fieldNames) {
+            this.fieldNames = fieldNames;
         };
-        Utils.cutOffQueryString = function (s) {
-            if (s.indexOf('?') > 0)
-                s = s.substr(0, s.indexOf('?'));
-            return s;
-        };
-        return Utils;
-    })();
-    CSREditor.Utils = Utils;
 
+        IntellisenseHelper.prototype.showCodeMirrorHint = function (cm, list) {
+            list.sort(function (l, r) {
+                if (l.displayText > r.displayText)
+                    return 1;
+                if (l.displayText < r.displayText)
+                    return -1;
+                return 0;
+            });
+
+            cm.getEditor()["showHint"]({
+                completeSingle: false,
+                hint: function (cm) {
+                    var cur = cm.getCursor();
+                    var token = cm.getTokenAt(cur);
+                    var completionInfo = null;
+                    var show_words = [];
+                    if (token.string == ".") {
+                        for (var i = 0; i < list.length; i++) {
+                            if (list[i].livePreview == false)
+                                show_words.push(list[i]);
+                        }
+
+                        completionInfo = { from: cur, to: cur, list: show_words };
+                    } else if (token.string == "," || token.string == "(") {
+                        completionInfo = { from: cur, to: cur, list: list };
+                    } else {
+                        for (var i = 0; i < list.length; i++) {
+                            if (list[i].text.toLowerCase().indexOf(token.string.toLowerCase().replace(/\"$/, '')) > -1)
+                                show_words.push(list[i]);
+                        }
+
+                        completionInfo = {
+                            from: { line: cur.line, ch: token.start },
+                            to: { line: cur.line, ch: token.end },
+                            list: show_words
+                        };
+                    }
+
+                    var tooltip;
+                    CodeMirror.on(completionInfo, "select", function (completion, element) {
+                        $('.tooltip').remove();
+                        if (completion.typeInfo) {
+                            $(element).tooltip({
+                                html: true,
+                                title: '<div class="tooltip-typeInfo">' + completion.typeInfo + '</div>' + '<div class="tooltip-docComment">' + completion.docComment.replace('\n', '<br/>') + '</div>',
+                                trigger: 'manual', container: 'body', placement: 'right'
+                            });
+                            $(element).tooltip('show');
+                        }
+                    });
+                    CodeMirror.on(completionInfo, "close", function () {
+                        $('.tooltip').remove();
+                    });
+
+                    return completionInfo;
+                }
+            });
+        };
+
+        IntellisenseHelper.prototype.showAutoCompleteDropDown = function (cm, changePosition) {
+            var scriptPosition = cm.indexFromPos(changePosition) + 1;
+            var completions = this.typeScriptService.getCompletions(scriptPosition);
+
+            if (completions == null)
+                return;
+
+            $('.tooltip').remove();
+
+            var list = [];
+            for (var i = 0; i < completions.entries.length; i++) {
+                var details = this.typeScriptService.getCompletionDetails(scriptPosition, completions.entries[i].name);
+                list.push({
+                    text: completions.entries[i].name,
+                    displayText: completions.entries[i].name,
+                    typeInfo: details.type,
+                    kind: completions.entries[i].kind,
+                    docComment: details.docComment,
+                    className: "autocomplete-" + completions.entries[i].kind,
+                    livePreview: false
+                });
+            }
+
+            this.showCodeMirrorHint(cm, list);
+        };
+
+        IntellisenseHelper.prototype.showFunctionTooltip = function (cm, changePosition) {
+            $('.tooltip').remove();
+
+            var signature = this.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
+
+            if (signature) {
+                this.tooltipLastPos = changePosition;
+                var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
+                var domElement = cm.getEditor().getWrapperElement();
+
+                $(domElement).data('bs.tooltip', false).tooltip({
+                    html: true,
+                    title: '<div class="tooltip-typeInfo">' + signature.formal[0].signatureInfo + '</div>' + '<div class="tooltip-docComment">' + signature.formal[0].docComment.replace('\n', '<br/>') + '</div>',
+                    trigger: 'manual', container: 'body', placement: 'bottom'
+                });
+                $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
+                    $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px");
+                });
+                $(domElement).tooltip('show');
+            }
+        };
+
+        IntellisenseHelper.prototype.showFieldInternalNamesDropDown = function (cm, changePosition) {
+            var position = cm.indexFromPos(changePosition) + 1;
+            var symbolInfo = this.typeScriptService.getSymbolInfo(position);
+            var typeMembers = symbolInfo.symbol.type.getMembers();
+            if (typeMembers.length == 4 && typeMembers[0].name == "View" && typeMembers[1].name == "EditForm" && typeMembers[2].name == "DisplayForm" && typeMembers[3].name == "NewForm") {
+                var list = [];
+                for (var i = 0; i < this.fieldNames.length; i++) {
+                    // field internal names
+                    list.push({
+                        text: '"' + this.fieldNames[i] + '"',
+                        displayText: this.fieldNames[i],
+                        docComment: "",
+                        livePreview: true
+                    });
+                }
+
+                this.showCodeMirrorHint(cm, list);
+            }
+        };
+
+        IntellisenseHelper.prototype.scriptChanged = function (cm, changeObj) {
+            if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {
+                this.showAutoCompleteDropDown(cm, changeObj.to);
+                return;
+            } else if (changeObj.text.length == 1 && (changeObj.text[0] == '(' || changeObj.text[0] == ',')) {
+                this.showFunctionTooltip(cm, changeObj.to);
+            } else if (changeObj.text.length == 1 && changeObj.text[0] == ')') {
+                $('.tooltip').remove();
+            } else if ((changeObj.from.ch > 0 && cm.getRange({ ch: changeObj.from.ch - 1, line: changeObj.from.line }, changeObj.from) == '"') || changeObj.text.length == 1 && changeObj.text[0] == '"') {
+                this.showFieldInternalNamesDropDown(cm, changeObj.to);
+            }
+        };
+        return IntellisenseHelper;
+    })();
+    CSREditor.IntellisenseHelper = IntellisenseHelper;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
     var Panel = (function () {
         function Panel() {
-            this.loadingData = false;
-            this.tooltipLastPos = { line: -1, ch: -1 };
             this.fileName = null;
             this.newFilesContent = {};
         }
@@ -322,8 +468,7 @@ var CSREditor;
         Panel.prototype.initialize = function () {
             Panel.instance.typeScriptService = new CSREditor.TypeScriptService();
             Panel.instance.editorCM = Panel.instance.initEditor();
-
-            Panel.instance.loadingData = false;
+            Panel.instance.intellisenseHelper = new CSREditor.IntellisenseHelper(Panel.instance.typeScriptService, Panel.instance.editorCM);
 
             var loadUrlToEditor = function (url) {
                 if (url in Panel.instance.newFilesContent)
@@ -362,12 +507,6 @@ var CSREditor;
                 }
             });
 
-            editor.on("cursorActivity", function (cm) {
-                if (cm.getDoc().getCursor().line != Panel.instance.tooltipLastPos.line || cm.getDoc().getCursor().ch < Panel.instance.tooltipLastPos.ch) {
-                    $('.tooltip').remove();
-                }
-            });
-
             editor.on("change", function (editor, changeList) {
                 Panel.instance.processChanges(editor.getDoc(), changeList);
             });
@@ -381,113 +520,13 @@ var CSREditor;
             Panel.instance.editorCM.setOption("readOnly", url == null);
             if (newlyCreated)
                 Panel.instance.newFilesContent[url] = text;
-        };
-
-        Panel.prototype.showCodeMirrorHint = function (cm, list) {
-            list.sort(function (l, r) {
-                if (l.displayText > r.displayText)
-                    return 1;
-                if (l.displayText < r.displayText)
-                    return -1;
-                return 0;
-            });
-
-            cm.getEditor()["showHint"]({
-                completeSingle: false,
-                hint: function (cm) {
-                    var cur = cm.getCursor();
-                    var token = cm.getTokenAt(cur);
-                    var completionInfo = null;
-                    var show_words = [];
-                    if (token.string == ".") {
-                        for (var i = 0; i < list.length; i++) {
-                            if (list[i].livePreview == false)
-                                show_words.push(list[i]);
-                        }
-
-                        completionInfo = { from: cur, to: cur, list: show_words };
-                    } else if (token.string == "," || token.string == "(") {
-                        completionInfo = { from: cur, to: cur, list: list };
-                    } else {
-                        for (var i = 0; i < list.length; i++) {
-                            if (list[i].text.toLowerCase().indexOf(token.string.toLowerCase()) > -1)
-                                show_words.push(list[i]);
-                        }
-
-                        completionInfo = {
-                            from: { line: cur.line, ch: token.start },
-                            to: { line: cur.line, ch: token.end },
-                            list: show_words
-                        };
-                    }
-
-                    var tooltip;
-                    CodeMirror.on(completionInfo, "select", function (completion, element) {
-                        $('.tooltip').remove();
-                        if (completion.typeInfo) {
-                            $(element).tooltip({
-                                html: true,
-                                title: '<div class="tooltip-typeInfo">' + completion.typeInfo + '</div>' + '<div class="tooltip-docComment">' + completion.docComment.replace('\n', '<br/>') + '</div>',
-                                trigger: 'manual', container: 'body', placement: 'right'
-                            });
-                            $(element).tooltip('show');
-                        }
-                    });
-                    CodeMirror.on(completionInfo, "close", function () {
-                        $('.tooltip').remove();
-                    });
-
-                    return completionInfo;
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(), function (result, errorInfo) {
+                var fieldNames = [];
+                for (var i = 0; i < result.length; i++) {
+                    fieldNames.push(result[i].Name);
                 }
+                Panel.instance.intellisenseHelper.setFieldInternalNames(fieldNames);
             });
-        };
-
-        Panel.prototype.showAutoCompleteDropDown = function (cm, changePosition) {
-            var scriptPosition = cm.indexFromPos(changePosition) + 1;
-            var completions = Panel.instance.typeScriptService.getCompletions(scriptPosition);
-
-            if (completions == null)
-                return;
-
-            $('.tooltip').remove();
-
-            var list = [];
-            for (var i = 0; i < completions.entries.length; i++) {
-                var details = Panel.instance.typeScriptService.getCompletionDetails(scriptPosition, completions.entries[i].name);
-                list.push({
-                    text: completions.entries[i].name,
-                    displayText: completions.entries[i].name,
-                    typeInfo: details.type,
-                    kind: completions.entries[i].kind,
-                    docComment: details.docComment,
-                    className: "autocomplete-" + completions.entries[i].kind,
-                    livePreview: false
-                });
-            }
-
-            Panel.instance.showCodeMirrorHint(cm, list);
-        };
-
-        Panel.prototype.showFunctionTooltip = function (cm, changePosition) {
-            $('.tooltip').remove();
-
-            var signature = Panel.instance.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
-
-            if (signature) {
-                Panel.instance.tooltipLastPos = changePosition;
-                var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
-                var domElement = cm.getEditor().getWrapperElement();
-
-                $(domElement).data('bs.tooltip', false).tooltip({
-                    html: true,
-                    title: '<div class="tooltip-typeInfo">' + signature.formal[0].signatureInfo + '</div>' + '<div class="tooltip-docComment">' + signature.formal[0].docComment.replace('\n', '<br/>') + '</div>',
-                    trigger: 'manual', container: 'body', placement: 'bottom'
-                });
-                $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
-                    $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px");
-                });
-                $(domElement).tooltip('show');
-            }
         };
 
         Panel.prototype.processChanges = function (cm, changeObj) {
@@ -507,14 +546,7 @@ var CSREditor;
                     CSREditor.ChromeIntegration.setResourceContent(url, text);
             }
 
-            if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {
-                Panel.instance.showAutoCompleteDropDown(cm, changeObj.to);
-                return;
-            } else if (changeObj.text.length == 1 && (changeObj.text[0] == '(' || changeObj.text[0] == ',')) {
-                Panel.instance.showFunctionTooltip(cm, changeObj.to);
-            } else if (changeObj.text.length == 1 && changeObj.text[0] == ')') {
-                $('.tooltip').remove();
-            }
+            Panel.instance.intellisenseHelper.scriptChanged(cm, changeObj);
 
             Panel.instance.checkSyntax(cm);
         };
@@ -550,35 +582,62 @@ var CSREditor;
     var SPActions = (function () {
         function SPActions() {
         }
-        SPActions.createFileInSharePoint = function (path, fileName) {
+        SPActions.getCSRContextInfo = function () {
+            var isFormContext = false;
             var wpqId = 2;
-            var formContext = null;
-            while ($get("WebPartWPQ" + wpqId) != null) {
-                if (window["WPQ" + wpqId + "FormCtx"]) {
-                    formContext = window["WPQ" + wpqId + "FormCtx"];
-                    break;
+            var csrContext = null;
+            if (window["SPClientForms"]) {
+                while ($get("WebPartWPQ" + wpqId) != null) {
+                    if (window["WPQ" + wpqId + "FormCtx"]) {
+                        csrContext = window["WPQ" + wpqId + "FormCtx"];
+                        isFormContext = true;
+                        break;
+                    }
+                    wpqId++;
                 }
-                wpqId++;
-            }
+                if (!isFormContext)
+                    return;
+            } else if (window["ctx"])
+                csrContext = window["ctx"];
 
+            var wpId;
+            if (isFormContext)
+                wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
+            else if (window["ctx"])
+                wpId = window["ctx"].clvp.wpid;
+
+            return {
+                isFormContext: isFormContext,
+                wpId: wpId,
+                csrContext: csrContext,
+                wpqId: wpqId
+            };
+        };
+
+        SPActions.getCode_retrieveFieldsInfo = function () {
+            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.retrieveFieldsInfo + ")(info); })();";
+        };
+
+        SPActions.retrieveFieldsInfo = function (info) {
+            return info.csrContext.ListSchema.Field;
+        };
+
+        SPActions.getCode_createFileInSharePoint = function (path, fileName) {
+            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', info); })();";
+        };
+        SPActions.createFileInSharePoint = function (path, fileName, info) {
             path = path.replace('%20', ' ');
 
-            if (formContext || window["ctx"]) {
+            if (info.csrContext) {
                 SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                     var context = SP.ClientContext.get_current();
 
                     var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
                     context.load(files, "Include(Name)");
 
-                    var wpid;
-                    if (formContext)
-                        wpid = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
-                    else if (window["ctx"])
-                        wpid = window["ctx"].clvp.wpid;
-
                     var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                     var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpid));
+                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(info.wpId));
                     var webpart = webpartDef.get_webPart();
                     var properties = webpart.get_properties();
                     context.load(properties);
@@ -592,7 +651,7 @@ var CSREditor;
                     };
 
                     var fatalError = function (sender, args) {
-                        console.log('CSREditor fatal error: ' + args.get_message());
+                        console.log('Cisar fatal error: ' + args.get_message());
                         window["g_Cisar_fileCreationResult"] = "error";
                     };
 
@@ -614,20 +673,20 @@ var CSREditor;
 
                             context.executeQueryAsync(function () {
                                 window["g_Cisar_fileCreationResult"] = "existing";
-                                console.log('CSREditor: existing file has been successfully linked to the ' + (formContext ? 'LFWP' : 'XLV') + '.');
+                                console.log('CSREditor: existing file has been successfully linked to the ' + (info.isFormContext ? 'LFWP' : 'XLV') + '.');
                             }, fatalError);
                         } else {
                             var creationInfo = new SP.FileCreationInformation();
                             creationInfo.set_content(new SP.Base64EncodedByteArray());
                             creationInfo.set_url(fileName);
                             var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo);
-                            file.checkIn("Checked in by CSR Editor", SP.CheckinType.majorCheckIn);
-                            file.publish("Published by CSR Editor");
+                            file.checkIn("Checked in by Cisar", SP.CheckinType.majorCheckIn);
+                            file.publish("Published by Cisar");
 
                             setupJsLink(properties);
 
                             context.executeQueryAsync(function () {
-                                console.log('CSREditor: file has been created successfully.');
+                                console.log('Cisar: file has been created successfully.');
                                 window["g_Cisar_fileCreationResult"] = "created";
                             }, fatalError);
                         }
@@ -635,25 +694,28 @@ var CSREditor;
                 });
             }
 
-            if (formContext)
+            if (info.isFormContext)
                 return {
-                    listId: formContext.ListAttributes.Id,
+                    listId: info.csrContext.ListAttributes.Id,
                     isListForm: true,
-                    listTemplate: formContext.ListAttributes.ListTemplateType
+                    listTemplate: info.csrContext.ListAttributes.ListTemplateType
                 };
-            else if (window["ctx"])
+            else if (info.csrContext)
                 return {
-                    listId: window["ctx"].listName,
-                    listUrl: window["ctx"].listUrlDir,
-                    listTitle: window["ctx"].ListTitle,
+                    listId: info.csrContext.listName,
+                    listUrl: info.csrContext.listUrlDir,
+                    listTitle: info.csrContext.ListTitle,
                     isListForm: false,
-                    baseViewId: window["ctx"].BaseViewID,
-                    listTemplate: window["ctx"].ListTemplateType
+                    baseViewId: info.csrContext.BaseViewID,
+                    listTemplate: info.csrContext.ListTemplateType
                 };
             else
                 return null;
         };
 
+        SPActions.getCode_checkFileCreated = function () {
+            return "(" + SPActions.checkFileCreated + ")();";
+        };
         SPActions.checkFileCreated = function () {
             if (window["g_Cisar_fileCreationResult"]) {
                 var result = window["g_Cisar_fileCreationResult"];
@@ -663,7 +725,13 @@ var CSREditor;
                 return "wait";
         };
 
-        SPActions.performCSRRefresh = function (url, content) {
+        SPActions.getCode_performCSRRefresh = function (url, content) {
+            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); (" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "', info); })();";
+        };
+        SPActions.performCSRRefresh = function (url, content, info) {
+            if (!info.csrContext)
+                return;
+
             var extend = function (dest, source) {
                 for (var p in source) {
                     if (source[p] && source[p].constructor && source[p].constructor === Object) {
@@ -686,32 +754,13 @@ var CSREditor;
                 }
             };
 
-            var formContext = false;
-            var wpqId = 2;
-            var csrContext = null;
-            if (window["SPClientForms"]) {
-                while ($get("WebPartWPQ" + wpqId) != null) {
-                    if (window["WPQ" + wpqId + "FormCtx"]) {
-                        csrContext = window["WPQ" + wpqId + "FormCtx"];
-                        formContext = true;
-                        break;
-                    }
-                    wpqId++;
-                }
-                if (!formContext)
-                    return;
-            } else if (window["ctx"])
-                csrContext = window["ctx"];
-            else
-                return;
-
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
 
-            if (formContext) {
+            if (info.isFormContext) {
                 var i = 0;
-                var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
-                for (var f in csrContext.ListSchema) {
+                var rows = document.querySelectorAll("#WebPartWPQ" + info.wpqId + " .ms-formtable tr .ms-formbody");
+                for (var f in info.csrContext.ListSchema) {
                     if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor")
                         continue;
                     var nodesToReplace = [];
@@ -719,15 +768,15 @@ var CSREditor;
                         if (rows[i].childNodes[n].nodeType != 8)
                             nodesToReplace.push(rows[i].childNodes[n]);
                     var span = document.createElement("span");
-                    span.id = "WPQ" + wpqId + csrContext.ListAttributes.Id + f;
+                    span.id = "WPQ" + info.wpqId + info.csrContext.ListAttributes.Id + f;
                     rows[i].appendChild(span);
                     for (var n = 0; n < nodesToReplace.length; n++)
                         span.appendChild(nodesToReplace[n]);
                     i++;
                 }
             } else
-                for (var f in csrContext.ListSchema.Field)
-                    delete csrContext.ListSchema.Field[f].fieldRenderer;
+                for (var f in info.csrContext.ListSchema.Field)
+                    delete info.csrContext.ListSchema.Field[f].fieldRenderer;
 
             if (window["g_templateOverrides_" + fileName])
                 substract_objects(SPClientTemplates.TemplateManager["_TemplateOverrides"], window["g_templateOverrides_" + fileName]);
@@ -736,7 +785,6 @@ var CSREditor;
             SPClientTemplates.TemplateManager.RegisterTemplateOverrides = function (options) {
                 SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
 
-                //debugger;
                 var savedTemplateOverrides = {};
                 extend(savedTemplateOverrides, SPClientTemplates.TemplateManager["_TemplateOverrides"]);
                 for (var p in SPClientTemplates.TemplateManager["_TemplateOverrides"])
@@ -752,18 +800,18 @@ var CSREditor;
                 SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
                 savedRegisterOverridesMethod(options);
 
-                csrContext.DebugMode = true;
+                info.csrContext.DebugMode = true;
 
-                if (formContext)
-                    window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
-                else if (csrContext.inGridMode) {
-                    var searchDiv = $get("inplaceSearchDiv_" + csrContext.wpq);
+                if (info.isFormContext)
+                    window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + info.wpqId).RenderClientForm();
+                else if (info.csrContext.inGridMode) {
+                    var searchDiv = $get("inplaceSearchDiv_" + info.wpqId);
                     searchDiv.parentNode.removeChild(searchDiv);
-                    var gridInitInfo = window["g_SPGridInitInfo"][csrContext.view];
+                    var gridInitInfo = window["g_SPGridInitInfo"][info.csrContext.view];
                     gridInitInfo.initialized = false;
-                    window["InitGrid"](gridInitInfo, csrContext, false);
+                    window["InitGrid"](gridInitInfo, info.csrContext, false);
                 } else
-                    window["RenderListView"](csrContext, csrContext.wpq);
+                    window["RenderListView"](info.csrContext, info.csrContext.wpq);
             };
 
             if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {
@@ -812,6 +860,9 @@ var CSREditor;
             }
         };
 
+        SPActions.getCode_saveFileToSharePoint = function (url, content64) {
+            return "(" + SPActions.saveFileToSharePoint + ")('" + url + "', '" + content64 + "');";
+        };
         SPActions.saveFileToSharePoint = function (url, content64) {
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
@@ -836,35 +887,22 @@ var CSREditor;
             });
         };
 
-        SPActions.removeFileFromSharePoint = function (url) {
-            var wpqId = 2;
-            var formContext = null;
-            while ($get("WebPartWPQ" + wpqId) != null) {
-                if (window["WPQ" + wpqId + "FormCtx"]) {
-                    formContext = window["WPQ" + wpqId + "FormCtx"];
-                    break;
-                }
-                wpqId++;
-            }
-
+        SPActions.getCode_removeFileFromSharePoint = function (url) {
+            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); (" + SPActions.removeFileFromSharePoint + ")('" + url + "', info); })();";
+        };
+        SPActions.removeFileFromSharePoint = function (url, info) {
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
 
-            if (formContext || window["ctx"]) {
+            if (info.csrContext) {
                 SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
-                    var wpid;
-                    if (formContext)
-                        wpid = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
-                    else if (window["ctx"])
-                        wpid = window["ctx"].clvp.wpid;
-
                     var context = SP.ClientContext.get_current();
 
                     context.get_site().get_rootWeb().getFileByServerRelativeUrl(url).recycle();
 
                     var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                     var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpid));
+                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(info.wpId));
                     var webpart = webpartDef.get_webPart();
                     var properties = webpart.get_properties();
                     context.load(properties);
@@ -1019,6 +1057,10 @@ var CSREditor;
             this.tsHost.scriptChanged(newText, startPos, changeLength);
         };
 
+        TypeScriptService.prototype.getSymbolInfo = function (position) {
+            return this.tsServiceShim.languageService["getSymbolInfoAtPosition"]('csr-editor.ts', position);
+        };
+
         TypeScriptService.prototype.getCompletions = function (position) {
             return this.tsServiceShim.languageService.getCompletionsAtPosition('csr-editor.ts', position, true);
         };
@@ -1039,5 +1081,23 @@ var CSREditor;
         return TypeScriptService;
     })();
     CSREditor.TypeScriptService = TypeScriptService;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
+    var Utils = (function () {
+        function Utils() {
+        }
+        Utils.endsWith = function (s, suffix) {
+            return s.indexOf(suffix, s.length - suffix.length) !== -1;
+        };
+
+        Utils.cutOffQueryString = function (s) {
+            if (s.indexOf('?') > 0)
+                s = s.substr(0, s.indexOf('?'));
+            return s;
+        };
+        return Utils;
+    })();
+    CSREditor.Utils = Utils;
 })(CSREditor || (CSREditor = {}));
 //# sourceMappingURL=csr-editor.js.map

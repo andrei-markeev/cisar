@@ -18,6 +18,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="AppIcon.png" />
+    <TypeScriptCompile Include="Code\IntellisenseHelper.ts" />
     <TypeScriptCompile Include="Code\SPActions.ts" />
     <Content Include="Content\bootstrap.min.css" />
     <Content Include="Content\codemirror\codemirror.css" />
@@ -47,6 +48,7 @@
     <Content Include="Scripts\typings\libs.d.ts" />
     <Content Include="web.config" />
     <TypeScriptCompile Include="Code\TypeScriptService.ts" />
+    <TypeScriptCompile Include="Code\Utils.ts" />
     <TypeScriptCompile Include="Scripts\typings\bootstrap\bootstrap.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\chrome\chrome-app.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\chrome\chrome.d.ts" />
