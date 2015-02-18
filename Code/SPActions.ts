@@ -202,7 +202,7 @@ module CSREditor {
             var savedRegisterOverridesMethod = SPClientTemplates.TemplateManager.RegisterTemplateOverrides;
             SPClientTemplates.TemplateManager.RegisterTemplateOverrides = function (options) {
                 SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
-
+                //debugger;
                 var savedTemplateOverrides = {};
                 extend(savedTemplateOverrides, SPClientTemplates.TemplateManager["_TemplateOverrides"]);
                 for (var p in SPClientTemplates.TemplateManager["_TemplateOverrides"])
@@ -222,10 +222,17 @@ module CSREditor {
 
                 if (formContext)
                     window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
+                else if (csrContext.inGridMode)
+                {
+                    var searchDiv = $get("inplaceSearchDiv_" + csrContext.wpq);
+                    searchDiv.parentNode.removeChild(searchDiv);
+                    var gridInitInfo = window["g_SPGridInitInfo"][csrContext.view];
+                    gridInitInfo.initialized = false
+                    window["InitGrid"](gridInitInfo, csrContext, false);
+                }
                 else
-                    window["RenderListView"](window["ctx"], window["ctx"].wpq);
+                    window["RenderListView"](csrContext, csrContext.wpq);
 
-                csrContext.DebugMode = false;
             }
 
             if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {

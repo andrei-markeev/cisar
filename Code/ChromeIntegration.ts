@@ -2,13 +2,21 @@
     export class ChromeIntegration {
 
         public static setResourceAddedListener(siteUrl: string, callback: { (url:string): void }) {
-            chrome.devtools.inspectedWindow.onResourceAdded.addListener(function (resource) {
-                var resUrl = Utils.cutOffQueryString(resource.url.toLowerCase().replace(' ', '%20'));
+            if (window["chrome"] && chrome.devtools) {
+                chrome.devtools.inspectedWindow.onResourceAdded.addListener(function (resource) {
+                    var resUrl = Utils.cutOffQueryString(resource.url.toLowerCase().replace(' ', '%20'));
 
-                if (Utils.endsWith(resUrl, ".js") && resUrl.indexOf(siteUrl) == 0 && resUrl.indexOf('/_layouts/') == -1)
-                    callback(Utils.cutOffQueryString(resource.url));
+                    if (Utils.endsWith(resUrl, ".js") && resUrl.indexOf(siteUrl) == 0 && resUrl.indexOf('/_layouts/') == -1)
+                        callback(Utils.cutOffQueryString(resource.url));
 
-            });
+                });
+            }
+        }
+
+        public static setNavigatedListener(callback) {
+            if (window["chrome"] && chrome.devtools) {
+                chrome.devtools.network.onNavigated.addListener(callback);
+            }
         }
 
         public static getAllResources(siteUrl: string, callback: { (urls: { [url: string]: number }): void }) {

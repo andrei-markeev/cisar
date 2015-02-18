@@ -4,12 +4,20 @@
         function ChromeIntegration() {
         }
         ChromeIntegration.setResourceAddedListener = function (siteUrl, callback) {
-            chrome.devtools.inspectedWindow.onResourceAdded.addListener(function (resource) {
-                var resUrl = CSREditor.Utils.cutOffQueryString(resource.url.toLowerCase().replace(' ', '%20'));
+            if (window["chrome"] && chrome.devtools) {
+                chrome.devtools.inspectedWindow.onResourceAdded.addListener(function (resource) {
+                    var resUrl = CSREditor.Utils.cutOffQueryString(resource.url.toLowerCase().replace(' ', '%20'));
 
-                if (CSREditor.Utils.endsWith(resUrl, ".js") && resUrl.indexOf(siteUrl) == 0 && resUrl.indexOf('/_layouts/') == -1)
-                    callback(CSREditor.Utils.cutOffQueryString(resource.url));
-            });
+                    if (CSREditor.Utils.endsWith(resUrl, ".js") && resUrl.indexOf(siteUrl) == 0 && resUrl.indexOf('/_layouts/') == -1)
+                        callback(CSREditor.Utils.cutOffQueryString(resource.url));
+                });
+            }
+        };
+
+        ChromeIntegration.setNavigatedListener = function (callback) {
+            if (window["chrome"] && chrome.devtools) {
+                chrome.devtools.network.onNavigated.addListener(callback);
+            }
         };
 
         ChromeIntegration.getAllResources = function (siteUrl, callback) {
@@ -728,6 +736,7 @@ var CSREditor;
             SPClientTemplates.TemplateManager.RegisterTemplateOverrides = function (options) {
                 SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
 
+                //debugger;
                 var savedTemplateOverrides = {};
                 extend(savedTemplateOverrides, SPClientTemplates.TemplateManager["_TemplateOverrides"]);
                 for (var p in SPClientTemplates.TemplateManager["_TemplateOverrides"])
@@ -747,10 +756,14 @@ var CSREditor;
 
                 if (formContext)
                     window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
-                else
-                    window["RenderListView"](window["ctx"], window["ctx"].wpq);
-
-                csrContext.DebugMode = false;
+                else if (csrContext.inGridMode) {
+                    var searchDiv = $get("inplaceSearchDiv_" + csrContext.wpq);
+                    searchDiv.parentNode.removeChild(searchDiv);
+                    var gridInitInfo = window["g_SPGridInitInfo"][csrContext.view];
+                    gridInitInfo.initialized = false;
+                    window["InitGrid"](gridInitInfo, csrContext, false);
+                } else
+                    window["RenderListView"](csrContext, csrContext.wpq);
             };
 
             if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {

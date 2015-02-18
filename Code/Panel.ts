@@ -37,7 +37,7 @@
                 if (url in Panel.instance.newFilesContent)
                     Panel.setEditorText(url, Panel.instance.newFilesContent[url]);
                 else {
-                    CSREditor.ChromeIntegration.getResourceContent(url, function (text: string) {
+                    ChromeIntegration.getResourceContent(url, function (text: string) {
                         Panel.setEditorText(url, text);
                     });
                 }
