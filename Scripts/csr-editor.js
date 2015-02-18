@@ -140,6 +140,19 @@ var CSREditor;
             removeButton.title = "delete file";
             div.appendChild(removeButton);
 
+            var publishButton = document.createElement('a');
+            publishButton.onclick = function (ev) {
+                CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_publishFileToSharePoint(url));
+                publishButton.style.color = "rgb(137, 213, 64)";
+                ev.preventDefault();
+                ev.stopPropagation();
+            };
+            publishButton.className = "publish-button";
+            publishButton.innerHTML = "☑";
+            publishButton.title = "publish file";
+            publishButton.style.color = "#777";
+            div.appendChild(publishButton);
+
             div.appendChild(document.createTextNode(url.substr(url.lastIndexOf('/') + 1)));
 
             if (justcreated)
@@ -246,6 +259,9 @@ var CSREditor;
         };
 
         FilesList.refreshCSR = function (url, content) {
+            var publishButton = document.querySelector('.files div[title="' + url + '"] .publish-button');
+            publishButton.style.color = '#777';
+
             url = CSREditor.Utils.cutOffQueryString(url.replace(FilesList.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
@@ -876,13 +892,33 @@ var CSREditor;
                 var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
                 file.checkOut();
                 file.saveBinary(saveInfo);
-                file.checkIn("Checked in by CSR Editor", SP.CheckinType.majorCheckIn);
-                file.publish("Published by CSR Editor");
+                file.checkIn("Checked in by Cisar", SP.CheckinType.minorCheckIn);
 
                 context.executeQueryAsync(function () {
                     console.log('CSREditor: file saved successfully.');
                 }, function (sender, args) {
                     console.log('CSREditor fatal error when saving file ' + fileName + ': ' + args.get_message());
+                });
+            });
+        };
+
+        SPActions.getCode_publishFileToSharePoint = function (url) {
+            return "(" + SPActions.publishFileToSharePoint + ")('" + url + "');";
+        };
+        SPActions.publishFileToSharePoint = function (url) {
+            var path = url.substr(0, url.lastIndexOf('/'));
+            var fileName = url.substr(url.lastIndexOf('/') + 1);
+
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+
+                var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
+                file.publish("Published by Cisar");
+
+                context.executeQueryAsync(function () {
+                    console.log('CSREditor: file published successfully.');
+                }, function (sender, args) {
+                    console.log('CSREditor fatal error when publishing file ' + fileName + ': ' + args.get_message());
                 });
             });
         };

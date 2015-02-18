@@ -69,20 +69,29 @@
     background-color: #f4f3f8;
 }
 
-.files > div a.remove-button {
+.files > div a {
     display: none;
 }
 
-.files > div.current a.remove-button {
+.files > div.current a {
     display: block;
     float: right;
     width: 10px;
-    font-size: 8px;
     color: #6a1617;
 }
-.files > div.current a.remove-button:hover {
+.files > div.current a:hover {
     text-decoration: none;
 }
+
+.files > div.current a.remove-button {
+    font-size: 8px;
+}
+
+.files > div.current a.publish-button {
+    font-size: 16px;
+    margin-right: 6px;
+}
+
 
 .files > div.justcreated {
     color: #175a16;

@@ -56,6 +56,19 @@ module CSREditor {
             removeButton.title = "delete file"
             div.appendChild(removeButton);
 
+            var publishButton = document.createElement('a');
+            publishButton.onclick = function (ev: MouseEvent) {
+                ChromeIntegration.eval(SPActions.getCode_publishFileToSharePoint(url));
+                publishButton.style.color = "rgb(137, 213, 64)";
+                ev.preventDefault();
+                ev.stopPropagation();
+            };
+            publishButton.className = "publish-button"
+            publishButton.innerHTML = "☑";
+            publishButton.title = "publish file"
+            publishButton.style.color = "#777";
+            div.appendChild(publishButton);
+
             div.appendChild(document.createTextNode(url.substr(url.lastIndexOf('/') + 1)));
 
             if (justcreated)
@@ -234,6 +247,9 @@ module CSREditor {
 
         public static refreshCSR(url: string, content: string) {
 
+            var publishButton = <HTMLDivElement>document.querySelector('.files div[title="' + url + '"] .publish-button');
+            publishButton.style.color = '#777';
+
             url = Utils.cutOffQueryString(url.replace(FilesList.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
@@ -241,7 +257,6 @@ module CSREditor {
             content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'");
 
             CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content));
-
         }
 
         public static saveChangesToFile(url: string, content: string) {

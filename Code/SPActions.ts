@@ -328,14 +328,36 @@ module CSREditor {
                 var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
                 file.checkOut();
                 file.saveBinary(saveInfo);
-                file.checkIn("Checked in by CSR Editor", SP.CheckinType.majorCheckIn);
-                file.publish("Published by CSR Editor");
+                file.checkIn("Checked in by Cisar", SP.CheckinType.minorCheckIn);
 
                 context.executeQueryAsync(function () {
                     console.log('CSREditor: file saved successfully.');
                 },
                 function (sender, args) {
                     console.log('CSREditor fatal error when saving file ' + fileName + ': ' + args.get_message());
+                });
+            });
+        }
+
+        public static getCode_publishFileToSharePoint(url: string) {
+            return "(" + SPActions.publishFileToSharePoint + ")('" + url + "');";
+        }
+        private static publishFileToSharePoint(url: string) {
+
+            var path = url.substr(0, url.lastIndexOf('/'));
+            var fileName = url.substr(url.lastIndexOf('/') + 1);
+
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+
+                var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
+                file.publish("Published by Cisar");
+
+                context.executeQueryAsync(function () {
+                    console.log('CSREditor: file published successfully.');
+                },
+                function (sender, args) {
+                    console.log('CSREditor fatal error when publishing file ' + fileName + ': ' + args.get_message());
                 });
             });
         }
