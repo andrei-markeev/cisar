@@ -5,6 +5,7 @@
 	"description": "SharePoint CSR Live Edit",
 	"icons": {
         "48": "AppIcon48.png",
+        "96": "AppIcon96.png",
         "128": "AppIcon.png"
 	},
     "devtools_page": "devtools.html",
