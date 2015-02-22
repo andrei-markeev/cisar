@@ -34,7 +34,6 @@ module CSREditor {
                                 if (result2 == "error")
                                     alert("There was an error when creating the file. Please check console for details.");
                                 else {
-                                    debugger;
                                     for (var wpqId in result2) {
                                         for (var f = 0; f < result2[wpqId].length; f++)
                                             wpDict[wpqId].appendFileToList(result2[wpqId][f]);
