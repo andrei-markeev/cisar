@@ -82,13 +82,14 @@ var CSREditor;
 var CSREditor;
 (function (CSREditor) {
     var FileModel = (function () {
-        function FileModel(root) {
+        function FileModel(wp, root) {
             this.url = '';
             this.shortUrl = '';
             this.justCreated = false;
             this.published = false;
             this.current = false;
             this.root = root;
+            this.wp = wp;
             ko.track(this);
         }
         FileModel.prototype.makeFileCurrent = function () {
@@ -96,6 +97,7 @@ var CSREditor;
                 this.root.currentFile.current = false;
             this.current = true;
             this.root.currentFile = this;
+            this.root.currentWebPart = this.wp;
             this.root.loadFileToEditor(this.url);
         };
         FileModel.prototype.publishFile = function () {
@@ -109,7 +111,7 @@ var CSREditor;
                 if (url[0] != '/')
                     url = '/' + url;
                 this.root.setEditorText(null, '');
-                CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_removeFileFromSharePoint(url));
+                CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_removeFileFromSharePoint(url, this.wp.id));
                 this.root.currentWebPart.files.remove(this);
             }
         };
@@ -133,16 +135,40 @@ var CSREditor;
                     console.log(errorInfo);
                     return;
                 }
+                var wpDict = {};
                 for (var i = 0; i < result.length; i++) {
-                    var wp = new CSREditor.WebPartModel(_this, result[i].title, result[i].wpId, result[i].wpqId, result.isListForm);
+                    var wp = new CSREditor.WebPartModel(_this, result[i]);
+                    wpDict[wp.wpq] = wp;
                     _this.webparts.push(wp);
                 }
-                if (_this.webparts.length > 0)
-                    _this.currentWebPart = _this.webparts[0];
                 ko.track(_this);
                 ko.applyBindings(_this);
+                var handle = setInterval(function () {
+                    CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (result2, errorInfo) {
+                        if (errorInfo)
+                            console.log(errorInfo);
+                        else if (result2 != "wait") {
+                            clearInterval(handle);
+                            if (result2 == "error")
+                                alert("There was an error when creating the file. Please check console for details.");
+                            else {
+                                debugger;
+                                for (var wpqId in result2) {
+                                    for (var f = 0; f < result2[wpqId].length; f++)
+                                        wpDict[wpqId].appendFileToList(result2[wpqId][f]);
+                                }
+                            }
+                        }
+                    });
+                }, 400);
             });
             this.webparts = [];
+            document.querySelector('.separator').onclick = function (ev) {
+                if (document.body.className.indexOf("fullscreen") > -1)
+                    document.body.className = document.body.className.replace("fullscreen", "");
+                else
+                    document.body.className += " fullscreen";
+            };
         }
         Object.defineProperty(FilesList.prototype, "filesPath", {
             get: function () {
@@ -154,27 +180,13 @@ var CSREditor;
             enumerable: true,
             configurable: true
         });
-        FilesList.prototype.addFiles = function (urls) {
-            for (var url in urls) {
-                this.currentWebPart.appendFileToList(url);
-            }
-            document.querySelector('.separator').onclick = function (ev) {
-                if (document.body.className.indexOf("fullscreen") > -1)
-                    document.body.className = document.body.className.replace("fullscreen", "");
-                else
-                    document.body.className += " fullscreen";
-            };
-        };
         FilesList.prototype.refreshCSR = function (url, content) {
-            for (var i = 0; i < this.currentWebPart.files.length; i++) {
-                if (this.currentWebPart.files[i].url == url)
-                    this.currentWebPart.files[i].published = false;
-            }
+            this.currentFile.published = false;
             url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
             content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'");
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_performCSRRefresh(url, content));
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_performCSRRefresh(url, content, this.currentWebPart.wpq, this.currentWebPart.isListForm, this.currentWebPart.ctxKey));
         };
         FilesList.prototype.saveChangesToFile = function (url, content) {
             var _this = this;
@@ -379,14 +391,6 @@ var CSREditor;
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
                     _this.filesList.siteUrl = siteUrl;
-                    CSREditor.ChromeIntegration.getAllResources(siteUrl, function (urls) {
-                        _this.filesList.addFiles(urls);
-                    });
-                    CSREditor.ChromeIntegration.setResourceAddedListener(siteUrl, function (url) {
-                        var urls = {};
-                        urls[url] = 1;
-                        _this.filesList.addFiles(urls);
-                    });
                 }
             });
         };
@@ -412,9 +416,11 @@ var CSREditor;
             this.fileName = url;
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);
+            if (url == null)
+                return;
             if (newlyCreated)
                 this.modifiedFilesContent[url] = text;
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(), function (result, errorInfo) {
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), function (result, errorInfo) {
                 var fieldNames = [];
                 for (var i = 0; i < result.length; i++) {
                     fieldNames.push(result[i].Name);
@@ -465,128 +471,152 @@ var CSREditor;
     var SPActions = (function () {
         function SPActions() {
         }
-        SPActions.getCSRContextInfo = function () {
-            var isFormContext = false;
-            var wpqId = 2;
-            var csrContext = null;
-            if (window["SPClientForms"]) {
-                while ($get("WebPartWPQ" + wpqId) != null) {
-                    if (window["WPQ" + wpqId + "FormCtx"]) {
-                        csrContext = window["WPQ" + wpqId + "FormCtx"];
-                        isFormContext = true;
-                        break;
-                    }
-                    wpqId++;
-                }
-                if (!isFormContext)
-                    return;
-            }
-            else if (window["ctx"])
-                csrContext = window["ctx"];
-            var wpId;
-            if (isFormContext)
-                wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
-            else if (window["ctx"])
-                wpId = window["ctx"].clvp.wpid;
-            return {
-                isFormContext: isFormContext,
-                wpId: wpId,
-                csrContext: csrContext,
-                wpqId: wpqId
-            };
-        };
         SPActions.getCode_listCsrWebparts = function () {
-            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.listCsrWebparts + ")(info); })();";
+            return "(" + SPActions.listCsrWebparts + ")();";
         };
-        SPActions.listCsrWebparts = function (info) {
+        SPActions.listCsrWebparts = function () {
             var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
-            var title = info.isFormContext ? controlModeTitle[info.csrContext.FormControlMode] + ': ' + info.csrContext.ItemAttributes.Url : 'View: ' + info.csrContext.ListTitle;
-            return [{ wpqId: info.wpqId, wpId: info.wpId, isListForm: info.isFormContext, title: title }];
-        };
-        SPActions.getCode_retrieveFieldsInfo = function () {
-            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.retrieveFieldsInfo + ")(info); })();";
-        };
-        SPActions.retrieveFieldsInfo = function (info) {
-            return info.csrContext.ListSchema.Field;
-        };
-        SPActions.getCode_createFileInSharePoint = function (path, fileName) {
-            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', info); })();";
-        };
-        SPActions.createFileInSharePoint = function (path, fileName, info) {
-            path = path.replace('%20', ' ');
-            if (info.csrContext) {
-                SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
-                    var context = SP.ClientContext.get_current();
-                    var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
-                    context.load(files, "Include(Name)");
-                    var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
-                    var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(info.wpId));
+            var context = SP.ClientContext.get_current();
+            var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+            var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+            var webparts = [];
+            var wp_properties = [];
+            var wpqId = 2;
+            while ($get("WebPartWPQ" + wpqId) != null) {
+                var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
+                if (window["WPQ" + wpqId + "FormCtx"]) {
+                    var ctx = window["WPQ" + wpqId + "FormCtx"];
+                    webparts.push({
+                        title: controlModeTitle[ctx.FormControlMode] + ': ' + ctx.ItemAttributes.Url,
+                        wpqId: wpqId,
+                        wpId: wpId,
+                        isListForm: true,
+                        ctxKey: "WPQ" + wpqId + "FormCtx",
+                        listTemplateType: ctx.ListTemplateType
+                    });
+                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
                     var webpart = webpartDef.get_webPart();
                     var properties = webpart.get_properties();
                     context.load(properties);
-                    var setupJsLink = function (properties) {
-                        var jsLinkString = (properties.get_item("JSLink") || "") + "|~sitecollection" + path + fileName;
-                        if (jsLinkString[0] == '|')
-                            jsLinkString = jsLinkString.substr(1);
-                        properties.set_item("JSLink", jsLinkString);
-                        webpartDef.saveWebPartChanges();
-                    };
-                    var fatalError = function (sender, args) {
-                        console.log('Cisar fatal error: ' + args.get_message());
-                        window["g_Cisar_fileCreationResult"] = "error";
-                    };
-                    context.executeQueryAsync(function () {
-                        var enumerator = files.getEnumerator();
-                        var fileExists = false;
-                        while (enumerator.moveNext() && !fileExists) {
-                            if (enumerator.get_current().get_name().toLowerCase() == fileName.toLowerCase())
-                                fileExists = true;
-                        }
-                        if (fileExists) {
-                            var script = document.createElement("script");
-                            script.src = _spPageContextInfo.siteAbsoluteUrl + path + fileName;
-                            script.type = "text/javascript";
-                            document.head.appendChild(script);
-                            setupJsLink(properties);
-                            context.executeQueryAsync(function () {
-                                window["g_Cisar_fileCreationResult"] = "existing";
-                                console.log('CSREditor: existing file has been successfully linked to the ' + (info.isFormContext ? 'LFWP' : 'XLV') + '.');
-                            }, fatalError);
-                        }
-                        else {
-                            var creationInfo = new SP.FileCreationInformation();
-                            creationInfo.set_content(new SP.Base64EncodedByteArray());
-                            creationInfo.set_url(fileName);
-                            var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo);
-                            file.checkIn("Checked in by Cisar", SP.CheckinType.majorCheckIn);
-                            file.publish("Published by Cisar");
-                            setupJsLink(properties);
-                            context.executeQueryAsync(function () {
-                                console.log('Cisar: file has been created successfully.');
-                                window["g_Cisar_fileCreationResult"] = "created";
-                            }, fatalError);
-                        }
-                    }, fatalError);
-                });
+                    wp_properties.push({ wpqId: wpqId, properties: properties });
+                }
+                else if (window["WPQ" + wpqId + "SchemaData"]) {
+                    var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
+                    var ctx = window["ctx" + ctxNumber];
+                    webparts.push({
+                        title: 'View: ' + ctx.ListTitle,
+                        wpqId: wpqId,
+                        wpId: wpId,
+                        isListForm: false,
+                        ctxKey: 'ctx' + ctxNumber,
+                        baseViewId: ctx.BaseViewId,
+                        listTemplateType: ctx.ListTemplateType
+                    });
+                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                    var webpart = webpartDef.get_webPart();
+                    var properties = webpart.get_properties();
+                    context.load(properties);
+                    wp_properties.push({ wpqId: wpqId, properties: properties });
+                }
+                wpqId++;
             }
-            if (info.isFormContext)
-                return {
-                    listId: info.csrContext.ListAttributes.Id,
-                    isListForm: true,
-                    listTemplate: info.csrContext.ListAttributes.ListTemplateType
-                };
-            else if (info.csrContext)
-                return {
-                    listId: info.csrContext.listName,
-                    listUrl: info.csrContext.listUrlDir,
-                    listTitle: info.csrContext.ListTitle,
-                    isListForm: false,
-                    baseViewId: info.csrContext.BaseViewID,
-                    listTemplate: info.csrContext.ListTemplateType
-                };
+            delete window["g_Cisar_JSLinkUrls"];
+            context.executeQueryAsync(function () {
+                var urls = {};
+                for (var i = 0; i < wp_properties.length; i++) {
+                    var urlsString = wp_properties[i].properties.get_item('JSLink') || '';
+                    if (urlsString != '') {
+                        var urlsArray = urlsString.split('|');
+                        for (var x = 0; x < urlsArray.length; x++) {
+                            urlsArray[x] = SPClientTemplates.Utility.ReplaceUrlTokens(urlsArray[x]);
+                        }
+                        urls[wp_properties[i].wpqId] = urlsArray;
+                    }
+                }
+                window["g_Cisar_JSLinkUrls"] = urls;
+            }, function (s, args) {
+                console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
+                window["g_Cisar_JSLinkUrls"] = 'error';
+            });
+            return webparts;
+        };
+        SPActions.getCode_checkJSLinkInfoRetrieved = function () {
+            return "(" + SPActions.checkJSLinkInfoRetrieved + ")();";
+        };
+        SPActions.checkJSLinkInfoRetrieved = function () {
+            if (window["g_Cisar_JSLinkUrls"]) {
+                var result = window["g_Cisar_JSLinkUrls"];
+                delete window["g_Cisar_JSLinkUrls"];
+                return result;
+            }
             else
-                return null;
+                return "wait";
+        };
+        SPActions.getCode_retrieveFieldsInfo = function (ctxKey) {
+            return "(" + SPActions.retrieveFieldsInfo + ")('" + ctxKey + "');";
+        };
+        SPActions.retrieveFieldsInfo = function (ctxKey) {
+            return window[ctxKey].ListSchema.Field;
+        };
+        SPActions.getCode_createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
+            return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + ctxKey + "');";
+        };
+        SPActions.createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
+            path = path.replace('%20', ' ');
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
+                context.load(files, "Include(Name)");
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                var properties = webpart.get_properties();
+                context.load(properties);
+                var setupJsLink = function (properties) {
+                    var jsLinkString = (properties.get_item("JSLink") || "") + "|~sitecollection" + path + fileName;
+                    if (jsLinkString[0] == '|')
+                        jsLinkString = jsLinkString.substr(1);
+                    properties.set_item("JSLink", jsLinkString);
+                    webpartDef.saveWebPartChanges();
+                };
+                var fatalError = function (sender, args) {
+                    console.log('Cisar fatal error: ' + args.get_message());
+                    window["g_Cisar_fileCreationResult"] = "error";
+                };
+                context.executeQueryAsync(function () {
+                    var enumerator = files.getEnumerator();
+                    var fileExists = false;
+                    while (enumerator.moveNext() && !fileExists) {
+                        if (enumerator.get_current().get_name().toLowerCase() == fileName.toLowerCase())
+                            fileExists = true;
+                    }
+                    if (fileExists) {
+                        var script = document.createElement("script");
+                        script.src = _spPageContextInfo.siteAbsoluteUrl + path + fileName;
+                        script.type = "text/javascript";
+                        document.head.appendChild(script);
+                        setupJsLink(properties);
+                        context.executeQueryAsync(function () {
+                            window["g_Cisar_fileCreationResult"] = "existing";
+                            console.log('CSREditor: existing file has been successfully linked to the webpart.');
+                        }, fatalError);
+                    }
+                    else {
+                        var creationInfo = new SP.FileCreationInformation();
+                        creationInfo.set_content(new SP.Base64EncodedByteArray());
+                        creationInfo.set_url(fileName);
+                        var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo);
+                        file.checkIn("Checked in by Cisar", SP.CheckinType.majorCheckIn);
+                        file.publish("Published by Cisar");
+                        setupJsLink(properties);
+                        context.executeQueryAsync(function () {
+                            console.log('Cisar: file has been created successfully.');
+                            window["g_Cisar_fileCreationResult"] = "created";
+                        }, fatalError);
+                    }
+                }, fatalError);
+            });
         };
         SPActions.getCode_checkFileCreated = function () {
             return "(" + SPActions.checkFileCreated + ")();";
@@ -600,12 +630,10 @@ var CSREditor;
             else
                 return "wait";
         };
-        SPActions.getCode_performCSRRefresh = function (url, content) {
-            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); (" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "', info); })();";
+        SPActions.getCode_performCSRRefresh = function (url, content, wpqId, isListForm, ctxKey) {
+            return "(" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "', " + wpqId + ", " + isListForm + ", '" + ctxKey + "');";
         };
-        SPActions.performCSRRefresh = function (url, content, info) {
-            if (!info.csrContext)
-                return;
+        SPActions.performCSRRefresh = function (url, content, wpqId, isListForm, ctxKey) {
             var extend = function (dest, source) {
                 for (var p in source) {
                     if (source[p] && source[p].constructor && source[p].constructor === Object) {
@@ -630,10 +658,10 @@ var CSREditor;
             };
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
-            if (info.isFormContext) {
+            if (isListForm) {
                 var i = 0;
-                var rows = document.querySelectorAll("#WebPartWPQ" + info.wpqId + " .ms-formtable tr .ms-formbody");
-                for (var f in info.csrContext.ListSchema) {
+                var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
+                for (var f in window[ctxKey].ListSchema) {
                     if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor")
                         continue;
                     var nodesToReplace = [];
@@ -641,7 +669,7 @@ var CSREditor;
                         if (rows[i].childNodes[n].nodeType != 8)
                             nodesToReplace.push(rows[i].childNodes[n]);
                     var span = document.createElement("span");
-                    span.id = "WPQ" + info.wpqId + info.csrContext.ListAttributes.Id + f;
+                    span.id = "WPQ" + wpqId + window[ctxKey].ListAttributes.Id + f;
                     rows[i].appendChild(span);
                     for (var n = 0; n < nodesToReplace.length; n++)
                         span.appendChild(nodesToReplace[n]);
@@ -649,8 +677,8 @@ var CSREditor;
                 }
             }
             else
-                for (var f in info.csrContext.ListSchema.Field)
-                    delete info.csrContext.ListSchema.Field[f].fieldRenderer;
+                for (var f in window[ctxKey].ListSchema.Field)
+                    delete window[ctxKey].ListSchema.Field[f].fieldRenderer;
             if (window["g_templateOverrides_" + fileName])
                 substract_objects(SPClientTemplates.TemplateManager["_TemplateOverrides"], window["g_templateOverrides_" + fileName]);
             var savedRegisterOverridesMethod = SPClientTemplates.TemplateManager.RegisterTemplateOverrides;
@@ -666,18 +694,18 @@ var CSREditor;
                 substract_objects(savedTemplateOverrides, { OnPreRender: window["g_templateOverrides_" + fileName].OnPreRender, OnPostRender: window["g_templateOverrides_" + fileName].OnPostRender });
                 SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
                 savedRegisterOverridesMethod(options);
-                info.csrContext.DebugMode = true;
-                if (info.isFormContext)
-                    window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + info.wpqId).RenderClientForm();
-                else if (info.csrContext.inGridMode) {
-                    var searchDiv = $get("inplaceSearchDiv_" + info.wpqId);
+                window[ctxKey].DebugMode = true;
+                if (isListForm)
+                    window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
+                else if (window[ctxKey].inGridMode) {
+                    var searchDiv = $get("inplaceSearchDiv_" + wpqId);
                     searchDiv.parentNode.removeChild(searchDiv);
-                    var gridInitInfo = window["g_SPGridInitInfo"][info.csrContext.view];
+                    var gridInitInfo = window["g_SPGridInitInfo"][window[ctxKey].view];
                     gridInitInfo.initialized = false;
-                    window["InitGrid"](gridInitInfo, info.csrContext, false);
+                    window["InitGrid"](gridInitInfo, window[ctxKey], false);
                 }
                 else
-                    window["RenderListView"](info.csrContext, info.csrContext.wpq);
+                    window["RenderListView"](window[ctxKey], window[ctxKey].wpq);
             };
             if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {
                 window["ko"].cleanNode(document.body);
@@ -760,36 +788,34 @@ var CSREditor;
                 });
             });
         };
-        SPActions.getCode_removeFileFromSharePoint = function (url) {
-            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); (" + SPActions.removeFileFromSharePoint + ")('" + url + "', info); })();";
+        SPActions.getCode_removeFileFromSharePoint = function (url, wpId) {
+            return "(" + SPActions.removeFileFromSharePoint + ")('" + url + "', '" + wpId + "');";
         };
-        SPActions.removeFileFromSharePoint = function (url, info) {
+        SPActions.removeFileFromSharePoint = function (url, wpId) {
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
-            if (info.csrContext) {
-                SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
-                    var context = SP.ClientContext.get_current();
-                    context.get_site().get_rootWeb().getFileByServerRelativeUrl(url).recycle();
-                    var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
-                    var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(info.wpId));
-                    var webpart = webpartDef.get_webPart();
-                    var properties = webpart.get_properties();
-                    context.load(properties);
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                context.get_site().get_rootWeb().getFileByServerRelativeUrl(url).recycle();
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                var properties = webpart.get_properties();
+                context.load(properties);
+                context.executeQueryAsync(function () {
+                    var jsLinkString = properties.get_item("JSLink").replace("|~sitecollection" + url, "").replace("~sitecollection" + url + "|", "").replace("~sitecollection" + url, "").replace("|~sitecollection" + url.replace('%20', ' '), "").replace("~sitecollection" + url.replace('%20', ' ') + "|", "").replace("~sitecollection" + url.replace('%20', ' '), "");
+                    properties.set_item("JSLink", jsLinkString);
+                    webpartDef.saveWebPartChanges();
                     context.executeQueryAsync(function () {
-                        var jsLinkString = properties.get_item("JSLink").replace("|~sitecollection" + url, "").replace("~sitecollection" + url + "|", "").replace("~sitecollection" + url, "").replace("|~sitecollection" + url.replace('%20', ' '), "").replace("~sitecollection" + url.replace('%20', ' ') + "|", "").replace("~sitecollection" + url.replace('%20', ' '), "");
-                        properties.set_item("JSLink", jsLinkString);
-                        webpartDef.saveWebPartChanges();
-                        context.executeQueryAsync(function () {
-                            console.log('CSREditor: file ' + fileName + ' was successfully moved to recycle bin and removed from the XLV/LFWP.');
-                        }, function (sender, args) {
-                            console.log('CSREditor error when unlinking file ' + fileName + ' from the XLV/LFWP: ' + args.get_message());
-                        });
+                        console.log('CSREditor: file ' + fileName + ' was successfully moved to recycle bin and removed from the XLV/LFWP.');
                     }, function (sender, args) {
-                        console.log('CSREditor fatal error when saving file ' + fileName + ': ' + args.get_message());
+                        console.log('CSREditor error when unlinking file ' + fileName + ' from the XLV/LFWP: ' + args.get_message());
                     });
+                }, function (sender, args) {
+                    console.log('CSREditor fatal error when saving file ' + fileName + ': ' + args.get_message());
                 });
-            }
+            });
         };
         return SPActions;
     })();
@@ -962,23 +988,26 @@ var CSREditor;
 var CSREditor;
 (function (CSREditor) {
     var WebPartModel = (function () {
-        function WebPartModel(root, title, id, wpq, isListForm) {
+        function WebPartModel(root, info) {
             this.files = [];
             this.fileFlags = {};
             this.adding = false;
             this.loading = false;
             this.newFileName = '';
             this.root = root;
-            this.title = title;
-            this.id = id;
-            this.wpq = wpq;
-            this.isListForm = isListForm;
+            this.title = info.title;
+            this.id = info.wpId;
+            this.wpq = info.wpqId;
+            this.isListForm = info.isListForm;
+            this.ctxKey = info.ctxKey;
+            this.listTemplateType = info.listTemplateType;
             ko.track(this);
         }
         WebPartModel.prototype.appendFileToList = function (url, justcreated) {
             if (justcreated === void 0) { justcreated = false; }
+            url = CSREditor.Utils.cutOffQueryString(url.toLowerCase().replace(/ /g, '%20'));
             if (!this.fileFlags[url]) {
-                var file = new CSREditor.FileModel(this.root);
+                var file = new CSREditor.FileModel(this, this.root);
                 file.url = url;
                 file.shortUrl = url.substr(url.lastIndexOf('/') + 1);
                 file.justCreated = justcreated;
@@ -987,6 +1016,7 @@ var CSREditor;
                     if (this.root.currentFile)
                         this.root.currentFile.current = false;
                     this.root.currentFile = file;
+                    this.root.currentWebPart = this;
                     file.current = true;
                 }
                 this.fileFlags[url] = 1;
@@ -1040,7 +1070,7 @@ var CSREditor;
             this.loading = true;
             if (this.newFileName.indexOf('.js') == -1)
                 this.newFileName += '.js';
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_createFileInSharePoint(this.root.filesPath.replace(' ', '%20').toLowerCase(), this.newFileName), function (result, errorInfo) {
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_createFileInSharePoint(this.root.filesPath.replace(' ', '%20').toLowerCase(), this.newFileName, this.id, this.ctxKey), function (result, errorInfo) {
                 if (!errorInfo) {
                     var handle = setInterval(function () {
                         CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkFileCreated(), function (result2, errorInfo) {

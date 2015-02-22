@@ -1,11 +1,13 @@
 ﻿module CSREditor {
     export class FileModel {
-        constructor(root: FilesList) {
+        constructor(wp: WebPartModel, root: FilesList) {
             this.root = root;
+            this.wp = wp;
             ko.track(this);
         }
 
         private root: FilesList;
+        private wp: WebPartModel;
 
         public url: string = '';
         public shortUrl: string = '';
@@ -18,6 +20,7 @@
                 this.root.currentFile.current = false;
             this.current = true;
             this.root.currentFile = this;
+            this.root.currentWebPart = this.wp;
             this.root.loadFileToEditor(this.url);
         }
 
@@ -33,7 +36,7 @@
                 if (url[0] != '/')
                     url = '/' + url;
                 this.root.setEditorText(null, '');
-                CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url));
+                CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url, this.wp.id));
                 this.root.currentWebPart.files.remove(this);
             }
         }

@@ -11,16 +11,50 @@ module CSREditor {
                     console.log(errorInfo);
                     return;
                 }
+                var wpDict: { [id: number]: WebPartModel } = {};
                 for (var i = 0; i < result.length; i++) {
-                    var wp = new WebPartModel(this, result[i].title, result[i].wpId, result[i].wpqId, result.isListForm);
+                    var wp = new WebPartModel(this, result[i]);
+                    wpDict[wp.wpq] = wp;
                     this.webparts.push(wp);
                 }
-                if (this.webparts.length > 0)
-                    this.currentWebPart = this.webparts[0];
                 ko.track(this);
                 ko.applyBindings(this);
+
+                var handle = setInterval(() => {
+
+                    CSREditor.ChromeIntegration.eval(
+
+                        SPActions.getCode_checkJSLinkInfoRetrieved(),
+
+                        (result2, errorInfo) => {
+                            if (errorInfo)
+                                console.log(errorInfo);
+                            else if (result2 != "wait") {
+                                clearInterval(handle);
+                                if (result2 == "error")
+                                    alert("There was an error when creating the file. Please check console for details.");
+                                else {
+                                    debugger;
+                                    for (var wpqId in result2) {
+                                        for (var f = 0; f < result2[wpqId].length; f++)
+                                            wpDict[wpqId].appendFileToList(result2[wpqId][f]);
+                                    }
+                                }
+                            }
+
+                        });
+
+                }, 400);
             });
             this.webparts = [];
+
+
+            (<HTMLDivElement>document.querySelector('.separator')).onclick = (ev: MouseEvent) => {
+                if (document.body.className.indexOf("fullscreen") > -1)
+                    document.body.className = document.body.className.replace("fullscreen", "");
+                else
+                    document.body.className += " fullscreen";
+            };
         }
 
         public currentWebPart: WebPartModel;
@@ -42,26 +76,9 @@ module CSREditor {
         private savingQueue: { [url: string]: any } = {};
         private savingProcess: any = null;
 
-        public addFiles(urls: { [url: string]: number }) {
-
-            for (var url in urls) {
-                this.currentWebPart.appendFileToList(url);
-            }
-
-            (<HTMLDivElement>document.querySelector('.separator')).onclick = (ev: MouseEvent) => {
-                if (document.body.className.indexOf("fullscreen") > -1)
-                    document.body.className = document.body.className.replace("fullscreen", "");
-                else
-                    document.body.className += " fullscreen";
-            };
-        }
-
         public refreshCSR(url: string, content: string) {
 
-            for (var i = 0; i < this.currentWebPart.files.length; i++) {
-                if (this.currentWebPart.files[i].url == url)
-                    this.currentWebPart.files[i].published = false;
-            }
+            this.currentFile.published = false;
 
             url = Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
@@ -69,7 +86,7 @@ module CSREditor {
 
             content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'");
 
-            CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content));
+            CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content, this.currentWebPart.wpq, this.currentWebPart.isListForm, this.currentWebPart.ctxKey));
         }
 
         public saveChangesToFile(url: string, content: string) {

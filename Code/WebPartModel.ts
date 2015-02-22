@@ -1,12 +1,14 @@
 ﻿module CSREditor {
     export class WebPartModel {
 
-        constructor(root: FilesList, title: string, id: string, wpq: number, isListForm: boolean) {
+        constructor(root: FilesList, info) {
             this.root = root;
-            this.title = title;
-            this.id = id;
-            this.wpq = wpq;
-            this.isListForm = isListForm;
+            this.title = info.title;
+            this.id = info.wpId;
+            this.wpq = info.wpqId;
+            this.isListForm = info.isListForm;
+            this.ctxKey = info.ctxKey;
+            this.listTemplateType = info.listTemplateType;
             ko.track(this);
         }
 
@@ -15,13 +17,16 @@
         public id: string;
         public wpq: number;
         public isListForm: boolean;
+        public ctxKey: string;
+        public listTemplateType: number;
 
         public files: FileModel[] = [];
         private fileFlags: { [url: string]: number } = {};
 
-        public appendFileToList(url, justcreated: boolean = false) {
+        public appendFileToList(url: string, justcreated: boolean = false) {
+            url = Utils.cutOffQueryString(url.toLowerCase().replace(/ /g, '%20'));
             if (!this.fileFlags[url]) {
-                var file = new FileModel(this.root);
+                var file = new FileModel(this, this.root);
                 file.url = url;
                 file.shortUrl = url.substr(url.lastIndexOf('/') + 1);
                 file.justCreated = justcreated;
@@ -30,6 +35,7 @@
                     if (this.root.currentFile)
                         this.root.currentFile.current = false;
                     this.root.currentFile = file;
+                    this.root.currentWebPart = this;
                     file.current = true;
                 }
                 this.fileFlags[url] = 1;
@@ -93,7 +99,7 @@
 
             CSREditor.ChromeIntegration.eval(
 
-                SPActions.getCode_createFileInSharePoint(this.root.filesPath.replace(' ', '%20').toLowerCase(), this.newFileName),
+                SPActions.getCode_createFileInSharePoint(this.root.filesPath.replace(' ', '%20').toLowerCase(), this.newFileName, this.id, this.ctxKey),
 
                 (result, errorInfo) => {
                     if (!errorInfo) {

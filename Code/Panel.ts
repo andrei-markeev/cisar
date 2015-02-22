@@ -32,14 +32,14 @@
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
                     this.filesList.siteUrl = siteUrl;
-                    ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
+                    /*ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
                         this.filesList.addFiles(urls);
                     });
                     ChromeIntegration.setResourceAddedListener(siteUrl, (url: string) => {
                         var urls: { [url: string]: number; } = {};
                         urls[url] = 1;
                         this.filesList.addFiles(urls);
-                    });
+                    });*/
                 }
             });
 
@@ -65,9 +65,13 @@
             this.fileName = url;
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);
+
+            if (url == null)
+                return;
+
             if (newlyCreated)
                 this.modifiedFilesContent[url] = text;
-            ChromeIntegration.eval(SPActions.getCode_retrieveFieldsInfo(), (result, errorInfo) => {
+            ChromeIntegration.eval(SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), (result, errorInfo) => {
                 var fieldNames = [];
                 for (var i = 0; i < result.length; i++) {
                     fieldNames.push(result[i].Name);
