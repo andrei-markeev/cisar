@@ -6,12 +6,21 @@ module CSREditor {
         constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
-            this.currentWebPart = new WebPartModel(this);
-            // TODO: get list of webparts from SP
+            CSREditor.ChromeIntegration.eval(SPActions.getCode_listCsrWebparts(), (result, errorInfo) => {
+                if (errorInfo) {
+                    console.log(errorInfo);
+                    return;
+                }
+                for (var i = 0; i < result.length; i++) {
+                    var wp = new WebPartModel(this, result[i].title, result[i].wpId, result[i].wpqId, result.isListForm);
+                    this.webparts.push(wp);
+                }
+                if (this.webparts.length > 0)
+                    this.currentWebPart = this.webparts[0];
+                ko.track(this);
+                ko.applyBindings(this);
+            });
             this.webparts = [];
-            this.webparts.push(this.currentWebPart);
-            ko.track(this);
-            ko.applyBindings(this);
         }
 
         public currentWebPart: WebPartModel;

@@ -122,17 +122,27 @@ var CSREditor;
 (function (CSREditor) {
     var FilesList = (function () {
         function FilesList(loadUrlToEditor, setEditorText) {
+            var _this = this;
             this.siteUrl = "";
             this.savingQueue = {};
             this.savingProcess = null;
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
-            this.currentWebPart = new CSREditor.WebPartModel(this);
-            // TODO: get list of webparts from SP
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_listCsrWebparts(), function (result, errorInfo) {
+                if (errorInfo) {
+                    console.log(errorInfo);
+                    return;
+                }
+                for (var i = 0; i < result.length; i++) {
+                    var wp = new CSREditor.WebPartModel(_this, result[i].title, result[i].wpId, result[i].wpqId, result.isListForm);
+                    _this.webparts.push(wp);
+                }
+                if (_this.webparts.length > 0)
+                    _this.currentWebPart = _this.webparts[0];
+                ko.track(_this);
+                ko.applyBindings(_this);
+            });
             this.webparts = [];
-            this.webparts.push(this.currentWebPart);
-            ko.track(this);
-            ko.applyBindings(this);
         }
         Object.defineProperty(FilesList.prototype, "filesPath", {
             get: function () {
@@ -484,6 +494,14 @@ var CSREditor;
                 csrContext: csrContext,
                 wpqId: wpqId
             };
+        };
+        SPActions.getCode_listCsrWebparts = function () {
+            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.listCsrWebparts + ")(info); })();";
+        };
+        SPActions.listCsrWebparts = function (info) {
+            var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
+            var title = info.isFormContext ? controlModeTitle[info.csrContext.FormControlMode] + ': ' + info.csrContext.ItemAttributes.Url : 'View: ' + info.csrContext.ListTitle;
+            return [{ wpqId: info.wpqId, wpId: info.wpId, isListForm: info.isFormContext, title: title }];
         };
         SPActions.getCode_retrieveFieldsInfo = function () {
             return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.retrieveFieldsInfo + ")(info); })();";
@@ -944,13 +962,17 @@ var CSREditor;
 var CSREditor;
 (function (CSREditor) {
     var WebPartModel = (function () {
-        function WebPartModel(root) {
+        function WebPartModel(root, title, id, wpq, isListForm) {
             this.files = [];
             this.fileFlags = {};
             this.adding = false;
             this.loading = false;
             this.newFileName = '';
             this.root = root;
+            this.title = title;
+            this.id = id;
+            this.wpq = wpq;
+            this.isListForm = isListForm;
             ko.track(this);
         }
         WebPartModel.prototype.appendFileToList = function (url, justcreated) {

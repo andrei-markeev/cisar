@@ -34,16 +34,31 @@
     left: 2px;
 }
 
-.files {
+.webparts {
     border: 1px solid #eee;
+    padding: 2px 1px;
     position: absolute;
     top: 10px;
     left: 5px;
     width: 188px;
     bottom: 15px;
-    padding: 2px 1px;
     overflow-y: scroll;
     overflow-x: hidden;
+}
+
+.header {
+    margin: 0;
+    padding: 4px;
+    border: 0;
+    background-color: #eee;
+    cursor: default;
+    font-size: 14px;
+}
+
+.files {
+    padding: 2px 1px;
+    border: 1px solid #eee;
+    margin-bottom: 12px;
 }
 
 .fullscreen .files {
@@ -107,6 +122,15 @@
     color: #e7e6ea;
     background-color: transparent;
     font-size: 16px;
+}
+.files > div.add > .hint {
+    color: #aaa;
+    font-size: 11px;
+    font-weight: normal;
+    display: block;
+}
+
+.files > div.add.adding {
     cursor: default;
 }
 
@@ -123,11 +147,10 @@
 }
 .files > div.add > div > div {
     font-weight: normal;
-    font-size: 10px;
-    color: #555;
+    font-size: 11px;
+    color: #888;
     margin-top: 4px;
     margin-left: 16px;
-    font-style: italic;
 }
 
 .files > div.add .change-path {

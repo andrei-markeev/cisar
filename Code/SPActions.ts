@@ -45,6 +45,16 @@ module CSREditor {
 
         }
 
+        public static getCode_listCsrWebparts() {
+            return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.listCsrWebparts + ")(info); })();";
+        }
+
+        private static listCsrWebparts(info: ISPActionContextInfo) {
+            var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
+            var title = info.isFormContext ? controlModeTitle[info.csrContext.FormControlMode] + ': ' + info.csrContext.ItemAttributes.Url : 'View: ' + info.csrContext.ListTitle;
+            return [{ wpqId: info.wpqId, wpId: info.wpId, isListForm: info.isFormContext, title: title }];
+        }
+
         public static getCode_retrieveFieldsInfo() {
             return "(function() { var info = (" + SPActions.getCSRContextInfo + ")(); return (" + SPActions.retrieveFieldsInfo + ")(info); })();";
         }

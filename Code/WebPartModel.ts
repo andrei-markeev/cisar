@@ -1,12 +1,20 @@
 ﻿module CSREditor {
     export class WebPartModel {
 
-        constructor(root: FilesList) {
+        constructor(root: FilesList, title: string, id: string, wpq: number, isListForm: boolean) {
             this.root = root;
+            this.title = title;
+            this.id = id;
+            this.wpq = wpq;
+            this.isListForm = isListForm;
             ko.track(this);
         }
 
         private root: FilesList;
+        public title: string;
+        public id: string;
+        public wpq: number;
+        public isListForm: boolean;
 
         public files: FileModel[] = [];
         private fileFlags: { [url: string]: number } = {};
