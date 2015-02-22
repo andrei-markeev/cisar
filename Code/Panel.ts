@@ -4,43 +4,41 @@
         private editorCM: CodeMirror.Editor;
         private typeScriptService: CSREditor.TypeScriptService;
         private intellisenseHelper: CSREditor.IntellisenseHelper;
+        private filesList: CSREditor.FilesList;
         private fileName = null;
-        private newFilesContent = {};
+        private modifiedFilesContent = {};
 
-        private static instance: CSREditor.Panel;
-        
         public static start() {
-
-            Panel.instance = new Panel();
-            Panel.instance.initialize();
+            var panel = new Panel();
+            panel.initialize();
         }
 
         private initialize() {
-            Panel.instance.typeScriptService = new CSREditor.TypeScriptService();
-            Panel.instance.editorCM = Panel.instance.initEditor();
-            Panel.instance.intellisenseHelper = new CSREditor.IntellisenseHelper(Panel.instance.typeScriptService, Panel.instance.editorCM);
+            this.typeScriptService = new CSREditor.TypeScriptService();
+            this.editorCM = this.initEditor();
+            this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
 
-            var loadUrlToEditor = function (url: string) {
-                if (url in Panel.instance.newFilesContent)
-                    Panel.setEditorText(url, Panel.instance.newFilesContent[url]);
+            this.filesList = new CSREditor.FilesList((url: string) => {
+                if (url in this.modifiedFilesContent)
+                    this.setEditorText(url, this.modifiedFilesContent[url]);
                 else {
-                    ChromeIntegration.getResourceContent(url, function (text: string) {
-                        Panel.setEditorText(url, text);
+                    ChromeIntegration.getResourceContent(url, (text: string) => {
+                        this.setEditorText(url, text);
                     });
                 }
-            }
+            }, this.setEditorText.bind(this));
 
-            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
+            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
-                    CSREditor.FilesList.siteUrl = siteUrl;
-                    ChromeIntegration.getAllResources(siteUrl, function (urls: { [url: string]: number; }) {
-                        CSREditor.FilesList.addFiles(urls, loadUrlToEditor);
+                    this.filesList.siteUrl = siteUrl;
+                    ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
+                        this.filesList.addFiles(urls);
                     });
-                    ChromeIntegration.setResourceAddedListener(siteUrl, function (url: string) {
+                    ChromeIntegration.setResourceAddedListener(siteUrl, (url: string) => {
                         var urls: { [url: string]: number; } = {};
                         urls[url] = 1;
-                        CSREditor.FilesList.addFiles(urls, loadUrlToEditor);
+                        this.filesList.addFiles(urls);
                     });
                 }
             });
@@ -59,22 +57,22 @@
                 }
             });
 
-            editor.on("change", function (editor, changeList) { Panel.instance.processChanges(editor.getDoc(), changeList) });
+            editor.on("change", (editor, changeList) => { this.processChanges(editor.getDoc(), changeList) });
             return editor;
         }
 
-        public static setEditorText(url:string, text: string, newlyCreated: boolean = false) {
-            Panel.instance.fileName = url;
-            Panel.instance.editorCM.getDoc().setValue(text);
-            Panel.instance.editorCM.setOption("readOnly", url == null);
+        private setEditorText(url:string, text: string, newlyCreated: boolean = false) {
+            this.fileName = url;
+            this.editorCM.getDoc().setValue(text);
+            this.editorCM.setOption("readOnly", url == null);
             if (newlyCreated)
-                Panel.instance.newFilesContent[url] = text;
-            ChromeIntegration.eval(SPActions.getCode_retrieveFieldsInfo(), function (result, errorInfo) {
+                this.modifiedFilesContent[url] = text;
+            ChromeIntegration.eval(SPActions.getCode_retrieveFieldsInfo(), (result, errorInfo) => {
                 var fieldNames = [];
                 for (var i = 0; i < result.length; i++) {
                     fieldNames.push(result[i].Name);
                 }
-                Panel.instance.intellisenseHelper.setFieldInternalNames(fieldNames);
+                this.intellisenseHelper.setFieldInternalNames(fieldNames);
             });
         }
 
@@ -83,22 +81,19 @@
             if (!changeObj)
                 return;
 
-            Panel.instance.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
+            this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
 
-            var url = Panel.instance.fileName;
+            var url = this.fileName;
             if (url != null) {
                 var text = cm.getValue();
-                FilesList.refreshCSR(url, text);
-                FilesList.saveChangesToFile(url, text);
-                if (url in Panel.instance.newFilesContent)
-                    Panel.instance.newFilesContent[url] = text;
-                else
-                    ChromeIntegration.setResourceContent(url, text);
+                this.filesList.refreshCSR(url, text);
+                this.filesList.saveChangesToFile(url, text);
+                this.modifiedFilesContent[url] = text;
             }
 
-            Panel.instance.intellisenseHelper.scriptChanged(cm, changeObj);
+            this.intellisenseHelper.scriptChanged(cm, changeObj);
 
-            Panel.instance.checkSyntax(cm);
+            this.checkSyntax(cm);
 
         }
 
@@ -112,8 +107,8 @@
             if (Panel.checkSyntaxTimeout)
                 clearTimeout(Panel.checkSyntaxTimeout);
 
-            Panel.checkSyntaxTimeout = setTimeout(function () {
-                var errors = Panel.instance.typeScriptService.getErrors();
+            Panel.checkSyntaxTimeout = setTimeout(() => {
+                var errors = this.typeScriptService.getErrors();
                 for (var i = 0; i < errors.length; i++) {
                     cm.markText(cm.posFromIndex(errors[i].start()), cm.posFromIndex(errors[i].start() + errors[i].length()), {
                         className: "syntax-error",

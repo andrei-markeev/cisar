@@ -9,7 +9,7 @@
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
-    <TypeScriptToolsVersion>1.0</TypeScriptToolsVersion>
+    <TypeScriptToolsVersion>1.4</TypeScriptToolsVersion>
     <UseIISExpress>true</UseIISExpress>
     <IISExpressSSLPort />
     <IISExpressAnonymousAuthentication />
@@ -23,6 +23,7 @@
     <Content Include="Content\bootstrap.min.css" />
     <Content Include="Content\codemirror\codemirror.css" />
     <Content Include="Content\codemirror\show-hint.css" />
+    <Content Include="Content\loader.gif" />
     <Content Include="Content\main.css" />
     <Content Include="devtools.html" />
     <Content Include="index.html" />
@@ -44,15 +45,22 @@
     <Content Include="Scripts\jquery-2.1.1.js" />
     <Content Include="Scripts\jquery-2.1.1.min.js" />
     <Content Include="manifest.json" />
+    <Content Include="Scripts\knockout-3.2.0.debug.js" />
+    <Content Include="Scripts\knockout-3.2.0.js" />
+    <Content Include="Scripts\knockout-es5.min.js" />
     <Content Include="Scripts\typescriptServices.js" />
     <Content Include="Scripts\typings\libs.d.ts" />
     <Content Include="web.config" />
     <TypeScriptCompile Include="Code\TypeScriptService.ts" />
     <TypeScriptCompile Include="Code\Utils.ts" />
+    <TypeScriptCompile Include="Code\FileModel.ts" />
+    <TypeScriptCompile Include="Code\WebPartModel.ts" />
     <TypeScriptCompile Include="Scripts\typings\bootstrap\bootstrap.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\chrome\chrome-app.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\chrome\chrome.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\jquery\jquery.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\knockout.es5\knockout.es5.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\knockout\knockout.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\typescript-services\typescriptServices.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\webrtc\MediaStream.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\webrtc\RTCPeerConnection.d.ts" />
