@@ -3,7 +3,7 @@ Cisar
 
 Google Chrome browser extension that adds a tab to Developer Tools, where you can create SharePoint Client Side Rendering customizations and they will be applied as-you-type to the underlying page.
 
-![Screenshot](https://raw.github.com/andrei-markeev/cisar/master/screenshot.png)
+![How it works](https://raw.github.com/andrei-markeev/cisar/master/cisar.gif)
 
 Installing
 ----------
