@@ -1079,7 +1079,7 @@ var CSREditor;
                                 _this.loading = false;
                                 clearInterval(handle);
                                 if (result2 == "created")
-                                    _this.fileWasCreated(_this.newFileName, result);
+                                    _this.fileWasCreated(_this.newFileName, result2);
                                 else if (result2 == "error")
                                     alert("There was an error when creating the file. Please check console for details.");
                             }

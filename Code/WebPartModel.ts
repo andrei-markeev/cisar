@@ -117,7 +117,7 @@
                                         this.loading = false;
                                         clearInterval(handle);
                                         if (result2 == "created")
-                                            this.fileWasCreated(this.newFileName, result);
+                                            this.fileWasCreated(this.newFileName, result2);
                                         else if (result2 == "error")
                                             alert("There was an error when creating the file. Please check console for details.");
                                     }
