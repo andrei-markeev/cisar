@@ -93,15 +93,17 @@
             var list = [];
             for (var i = 0; i < completions.entries.length; i++) {
                 var details = this.typeScriptService.getCompletionDetails(scriptPosition, completions.entries[i].name);
-                list.push({
-                    text: completions.entries[i].name,
-                    displayText: completions.entries[i].name,
-                    typeInfo: details.type,
-                    kind: completions.entries[i].kind,
-                    docComment: details.docComment,
-                    className: "autocomplete-" + completions.entries[i].kind,
-                    livePreview: false
-                });
+                if (details != null) {
+                    list.push({
+                        text: completions.entries[i].name,
+                        displayText: completions.entries[i].name,
+                        typeInfo: details.type,
+                        kind: completions.entries[i].kind,
+                        docComment: details.docComment,
+                        className: "autocomplete-" + completions.entries[i].kind,
+                        livePreview: false
+                    });
+                }
             }
 
             this.showCodeMirrorHint(cm, list);
@@ -159,9 +161,8 @@
         }
 
         public scriptChanged(cm: CodeMirror.Doc, changeObj?: CodeMirror.EditorChangeLinkedList) {
-            if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {
+            if (changeObj.text.length == 1 && changeObj.text[0] == '.') {
                 this.showAutoCompleteDropDown(cm, changeObj.to);
-                return;
             }
             else if (changeObj.text.length == 1 && (changeObj.text[0] == '(' || changeObj.text[0] == ',')) {
                 this.showFunctionTooltip(cm, changeObj.to);
@@ -173,7 +174,9 @@
                 || changeObj.text.length == 1 && changeObj.text[0] == '"') {
                 this.showFieldInternalNamesDropDown(cm, changeObj.to);
             }
+            //else if (changeObj.from.ch > 0 && /^\s[a-zA-Z][a-zA-Z0-9]$/.test(cm.getRange({ ch: changeObj.from.ch - 3, line: changeObj.from.line }, changeObj.from))) {
+            //    this.showAutoCompleteDropDown(cm, changeObj.to);
+            //}
         }
-
     }
 }

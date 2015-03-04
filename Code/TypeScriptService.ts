@@ -1,15 +1,23 @@
 ﻿module CSREditor {
 
     class TypeScriptServiceHost implements TypeScript.Services.ILanguageServiceShimHost {
-        private scriptVersion: number = 0;
+        private scriptVersion: {[fn: string]: number} = {};
         private libText: string = "";
         private libTextLength: number = 0;
-        private text: string = "";
-        private changes: TypeScript.TextChangeRange[] = [];
+        private text: { [fn: string]: string } = {};
+        private changes: {
+            [fn: string]: TypeScript.TextChangeRange[]
+        } = {};
 
         constructor(libText: string) {
             this.libText = libText;
             this.libTextLength = libText.length;
+            this.scriptVersion['csr-editor.ts'] = 0;
+            this.text['csr-editor.ts'] = '';
+            this.changes['csr-editor.ts'] = [];
+            this.scriptVersion['live.ts'] = 0;
+            this.text['live.ts'] = '';
+            this.changes['live.ts'] = [];
         }
 
         log(message) { console.log("tsHost: " + message); }
@@ -19,8 +27,8 @@
         error() { return true; }
         fatal() { return true; }
         getCompilationSettings() { return "{ \"noLib\": true }"; }
-        getScriptFileNames() { return "[\"csr-editor.ts\", \"libs.ts\"]" }
-        getScriptVersion(fn) { if (fn == 'libs.ts') return 0; else return this.scriptVersion; }
+        getScriptFileNames() { return "[\"libs.ts\", \"live.ts\", \"csr-editor.ts\"]" }
+        getScriptVersion(fn) { return this.scriptVersion[fn]; }
         getScriptIsOpen(fn) { return true; }
         getLocalizedDiagnosticMessages() { return ""; }
         getCancellationToken() { return null; }
@@ -41,16 +49,16 @@
                 snapshotVersion = 0;
             }
             else {
-                snapshot = TypeScript.ScriptSnapshot.fromString(this.text);
-                snapshotChanges = this.changes;
-                snapshotVersion = this.scriptVersion;
+                snapshot = TypeScript.ScriptSnapshot.fromString(this.text[fn]);
+                snapshotChanges = this.changes[fn];
+                snapshotVersion = this.scriptVersion[fn];
             }
             return {
                 getText: function (s, e) { return snapshot.getText(s, e); },
                 getLength: function () { return snapshot.getLength(); },
                 getLineStartPositions: function () { return "[" + snapshot.getLineStartPositions().toString() + "]" },
                 getTextChangeRangeSinceVersion: function (version) {
-                    if (snapshotVersion == 0)
+                    if (snapshotVersion == 0 || snapshotChanges.length == 0)
                         return null;
                     var result = TypeScript.TextChangeRange.collapseChangesAcrossMultipleVersions(snapshotChanges.slice(version - snapshotVersion));
                     return "{ \"span\": { \"start\": " + result.span().start() + ", \"length\": " + result.span().length() + " }, \"newLength\": " + result.newLength() + " }";
@@ -59,10 +67,11 @@
         }
 
         public getLibLength() { return this.libTextLength; }
-        public scriptChanged(newText, startPos, changeLength) {
-            this.scriptVersion++;
-            this.text = newText;
-            this.changes.push(new TypeScript.TextChangeRange(new TypeScript.TextSpan(startPos, changeLength), newText.length));
+        public scriptChanged(fn, newText, startPos=0, changeLength=0) {
+            this.scriptVersion[fn]++;
+            this.text[fn] = newText;
+            if (startPos>0 || changeLength > 0)
+                this.changes[fn].push(new TypeScript.TextChangeRange(new TypeScript.TextSpan(startPos, changeLength), newText.length));
         }
     }
 
@@ -87,7 +96,10 @@
         }
 
         public scriptChanged(newText, startPos, changeLength) {
-            this.tsHost.scriptChanged(newText, startPos, changeLength);
+            this.tsHost.scriptChanged('csr-editor.ts', newText, startPos, changeLength);
+        }
+        public windowChanged(newText) {
+            this.tsHost.scriptChanged('live.ts', newText);
         }
 
         public getSymbolInfo(position) {

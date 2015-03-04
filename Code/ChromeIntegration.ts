@@ -13,7 +13,7 @@
             }
         }
 
-        public static setNavigatedListener(callback) {
+        public static setNavigatedListener(callback: {(url: string)}) {
             if (window["chrome"] && chrome.devtools) {
                 chrome.devtools.network.onNavigated.addListener(callback);
             }

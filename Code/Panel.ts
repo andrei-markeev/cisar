@@ -22,13 +22,13 @@
                 if (url in this.modifiedFilesContent)
                     this.setEditorText(url, this.modifiedFilesContent[url]);
                 else {
-                    ChromeIntegration.getResourceContent(url, (text: string) => {
+                    ChromeIntegration.getResourceContent(url,(text: string) => {
                         this.setEditorText(url, text);
                     });
                 }
             }, this.setEditorText.bind(this));
 
-            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
+            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl",(result, errorInfo) => {
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
                     this.filesList.siteUrl = siteUrl;
@@ -40,6 +40,23 @@
                         urls[url] = 1;
                         this.filesList.addFiles(urls);
                     });*/
+                }
+            });
+
+            ChromeIntegration.eval("keys(window)",(result, errorInfo) => {
+                if (!errorInfo) {
+                    var windowTS = '';
+                    var completions = this.typeScriptService.getCompletions(0);
+                    var existingSymbols = {};
+                    if (completions != null) {
+                        for (var i = 0; i < completions.entries.length; i++)
+                            existingSymbols[completions.entries[i].name] = 1;
+                    }
+                    for (var k = 0; k < result.length; k++) {
+                        if (typeof existingSymbols[result[k]] == 'undefined' && /^[a-zA-Z_][a-zA-Z0-9_]+$/.test(result[k]))
+                            windowTS += 'var ' + result[k] + ': any;';
+                    }
+                    this.typeScriptService.windowChanged(windowTS);
                 }
             });
 

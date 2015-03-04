@@ -292,15 +292,17 @@ var CSREditor;
             var list = [];
             for (var i = 0; i < completions.entries.length; i++) {
                 var details = this.typeScriptService.getCompletionDetails(scriptPosition, completions.entries[i].name);
-                list.push({
-                    text: completions.entries[i].name,
-                    displayText: completions.entries[i].name,
-                    typeInfo: details.type,
-                    kind: completions.entries[i].kind,
-                    docComment: details.docComment,
-                    className: "autocomplete-" + completions.entries[i].kind,
-                    livePreview: false
-                });
+                if (details != null) {
+                    list.push({
+                        text: completions.entries[i].name,
+                        displayText: completions.entries[i].name,
+                        typeInfo: details.type,
+                        kind: completions.entries[i].kind,
+                        docComment: details.docComment,
+                        className: "autocomplete-" + completions.entries[i].kind,
+                        livePreview: false
+                    });
+                }
             }
             this.showCodeMirrorHint(cm, list);
         };
@@ -343,9 +345,8 @@ var CSREditor;
             }
         };
         IntellisenseHelper.prototype.scriptChanged = function (cm, changeObj) {
-            if (changeObj.text.length == 1 && (changeObj.text[0] == '.' || changeObj.text[0] == ' ')) {
+            if (changeObj.text.length == 1 && changeObj.text[0] == '.') {
                 this.showAutoCompleteDropDown(cm, changeObj.to);
-                return;
             }
             else if (changeObj.text.length == 1 && (changeObj.text[0] == '(' || changeObj.text[0] == ',')) {
                 this.showFunctionTooltip(cm, changeObj.to);
@@ -356,6 +357,9 @@ var CSREditor;
             else if ((changeObj.from.ch > 0 && cm.getRange({ ch: changeObj.from.ch - 1, line: changeObj.from.line }, changeObj.from) == '"') || changeObj.text.length == 1 && changeObj.text[0] == '"') {
                 this.showFieldInternalNamesDropDown(cm, changeObj.to);
             }
+            //else if (changeObj.from.ch > 0 && /^\s[a-zA-Z][a-zA-Z0-9]$/.test(cm.getRange({ ch: changeObj.from.ch - 3, line: changeObj.from.line }, changeObj.from))) {
+            //    this.showAutoCompleteDropDown(cm, changeObj.to);
+            //}
         };
         return IntellisenseHelper;
     })();
@@ -390,6 +394,22 @@ var CSREditor;
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
                     _this.filesList.siteUrl = siteUrl;
+                }
+            });
+            CSREditor.ChromeIntegration.eval("keys(window)", function (result, errorInfo) {
+                if (!errorInfo) {
+                    var windowTS = '';
+                    var completions = _this.typeScriptService.getCompletions(0);
+                    var existingSymbols = {};
+                    if (completions != null) {
+                        for (var i = 0; i < completions.entries.length; i++)
+                            existingSymbols[completions.entries[i].name] = 1;
+                    }
+                    for (var k = 0; k < result.length; k++) {
+                        if (typeof existingSymbols[result[k]] == 'undefined' && /^[a-zA-Z_][a-zA-Z0-9_]+$/.test(result[k]))
+                            windowTS += 'var ' + result[k] + ': any;';
+                    }
+                    _this.typeScriptService.windowChanged(windowTS);
                 }
             });
         };
@@ -824,13 +844,19 @@ var CSREditor;
 (function (CSREditor) {
     var TypeScriptServiceHost = (function () {
         function TypeScriptServiceHost(libText) {
-            this.scriptVersion = 0;
+            this.scriptVersion = {};
             this.libText = "";
             this.libTextLength = 0;
-            this.text = "";
-            this.changes = [];
+            this.text = {};
+            this.changes = {};
             this.libText = libText;
             this.libTextLength = libText.length;
+            this.scriptVersion['csr-editor.ts'] = 0;
+            this.text['csr-editor.ts'] = '';
+            this.changes['csr-editor.ts'] = [];
+            this.scriptVersion['live.ts'] = 0;
+            this.text['live.ts'] = '';
+            this.changes['live.ts'] = [];
         }
         TypeScriptServiceHost.prototype.log = function (message) {
             console.log("tsHost: " + message);
@@ -854,13 +880,10 @@ var CSREditor;
             return "{ \"noLib\": true }";
         };
         TypeScriptServiceHost.prototype.getScriptFileNames = function () {
-            return "[\"csr-editor.ts\", \"libs.ts\"]";
+            return "[\"libs.ts\", \"live.ts\", \"csr-editor.ts\"]";
         };
         TypeScriptServiceHost.prototype.getScriptVersion = function (fn) {
-            if (fn == 'libs.ts')
-                return 0;
-            else
-                return this.scriptVersion;
+            return this.scriptVersion[fn];
         };
         TypeScriptServiceHost.prototype.getScriptIsOpen = function (fn) {
             return true;
@@ -897,9 +920,9 @@ var CSREditor;
                 snapshotVersion = 0;
             }
             else {
-                snapshot = TypeScript.ScriptSnapshot.fromString(this.text);
-                snapshotChanges = this.changes;
-                snapshotVersion = this.scriptVersion;
+                snapshot = TypeScript.ScriptSnapshot.fromString(this.text[fn]);
+                snapshotChanges = this.changes[fn];
+                snapshotVersion = this.scriptVersion[fn];
             }
             return {
                 getText: function (s, e) {
@@ -912,7 +935,7 @@ var CSREditor;
                     return "[" + snapshot.getLineStartPositions().toString() + "]";
                 },
                 getTextChangeRangeSinceVersion: function (version) {
-                    if (snapshotVersion == 0)
+                    if (snapshotVersion == 0 || snapshotChanges.length == 0)
                         return null;
                     var result = TypeScript.TextChangeRange.collapseChangesAcrossMultipleVersions(snapshotChanges.slice(version - snapshotVersion));
                     return "{ \"span\": { \"start\": " + result.span().start() + ", \"length\": " + result.span().length() + " }, \"newLength\": " + result.newLength() + " }";
@@ -922,10 +945,13 @@ var CSREditor;
         TypeScriptServiceHost.prototype.getLibLength = function () {
             return this.libTextLength;
         };
-        TypeScriptServiceHost.prototype.scriptChanged = function (newText, startPos, changeLength) {
-            this.scriptVersion++;
-            this.text = newText;
-            this.changes.push(new TypeScript.TextChangeRange(new TypeScript.TextSpan(startPos, changeLength), newText.length));
+        TypeScriptServiceHost.prototype.scriptChanged = function (fn, newText, startPos, changeLength) {
+            if (startPos === void 0) { startPos = 0; }
+            if (changeLength === void 0) { changeLength = 0; }
+            this.scriptVersion[fn]++;
+            this.text[fn] = newText;
+            if (startPos > 0 || changeLength > 0)
+                this.changes[fn].push(new TypeScript.TextChangeRange(new TypeScript.TextSpan(startPos, changeLength), newText.length));
         };
         return TypeScriptServiceHost;
     })();
@@ -944,7 +970,10 @@ var CSREditor;
             client.send();
         }
         TypeScriptService.prototype.scriptChanged = function (newText, startPos, changeLength) {
-            this.tsHost.scriptChanged(newText, startPos, changeLength);
+            this.tsHost.scriptChanged('csr-editor.ts', newText, startPos, changeLength);
+        };
+        TypeScriptService.prototype.windowChanged = function (newText) {
+            this.tsHost.scriptChanged('live.ts', newText);
         };
         TypeScriptService.prototype.getSymbolInfo = function (position) {
             return this.tsServiceShim.languageService["getSymbolInfoAtPosition"]('csr-editor.ts', position);
