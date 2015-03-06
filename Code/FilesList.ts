@@ -83,7 +83,7 @@ module CSREditor {
             if (url[0] != '/')
                 url = '/' + url;
 
-            content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'");
+            content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'").replace(/\\/g, "\\\\");
 
             CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content, this.currentWebPart.wpq, this.currentWebPart.isListForm, this.currentWebPart.ctxKey));
         }

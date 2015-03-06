@@ -173,12 +173,7 @@
                 '\r\n' +
                 '      },\r\n\r\n' +
                 '      // OnPostRender: function(ctx) { },\r\n\r\n' +
-
-                (result.isListForm ? '' :
-                    '      BaseViewID: ' + result.baseViewId + ',\r\n'
-                    ) +
-
-                '      ListTemplateType: ' + result.listTemplate + '\r\n\r\n' +
+                '      ListTemplateType: ' + this.listTemplateType + '\r\n\r\n' +
                 '    });\r\n' +
                 '  }\r\n\r\n' +
                 '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + newFileName + '"), init);\r\n' +
