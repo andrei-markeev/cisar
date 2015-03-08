@@ -32,14 +32,9 @@
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
                     this.filesList.siteUrl = siteUrl;
-                    /*ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
-                        this.filesList.addFiles(urls);
+                    ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
+                        this.filesList.addOtherFiles(Object.keys(urls));
                     });
-                    ChromeIntegration.setResourceAddedListener(siteUrl, (url: string) => {
-                        var urls: { [url: string]: number; } = {};
-                        urls[url] = 1;
-                        this.filesList.addFiles(urls);
-                    });*/
                 }
             });
 

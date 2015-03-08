@@ -36,7 +36,7 @@
                 if (url[0] != '/')
                     url = '/' + url;
                 this.root.setEditorText(null, '');
-                CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url, this.wp.id));
+                CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
                 this.root.currentWebPart.files.remove(this);
             }
         }

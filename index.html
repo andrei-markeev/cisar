@@ -20,29 +20,44 @@
     <script type="text/javascript" src="Scripts/knockout-es5.min.js"></script>
 </head>
 <body>
-    <div class="webparts">
-        <!-- ko foreach: webparts -->
-        <div class="header" data-bind="text: title"></div>
+    <div class="webparts" data-bind="visible: loading">
         <div class="files">
-            <div class="add" data-bind="click: displayAddNewFileUI, css: { adding: adding }">
-                <span>+</span>
-                <div class="hint" data-bind="visible: !adding && files.length == 0">Click here to add a file to this webpart</div>
-                <div data-bind="visible: adding">
-                    <input type="text" data-bind="hasFocus: adding, value: newFileName, valueUpdate: 'afterkeydown', event: { keydown: fileNameInputKeyDown }" />
-                    <div>Enter filename.</div>
-                    <div>[Enter] = create/bind file, [ESC] = cancel</div>
+            <div class="loading"><img src="/Content/loader.gif" alt=""></div>
+        </div>
+    </div>
+    <div class="webparts" data-bind="visible: !loading" style="display: none;">
+        <!-- ko foreach: webparts -->
+            <div class="header" data-bind="text: title"></div>
+            <div class="files">
+                <div class="add" data-bind="click: displayAddNewFileUI, css: { adding: adding }">
+                    <span>+</span>
+                    <div class="hint" data-bind="visible: !adding && files.length == 0">Click here to add a file to this webpart</div>
+                    <div data-bind="visible: adding">
+                        <input type="text" data-bind="hasFocus: adding, value: newFileName, valueUpdate: 'afterkeydown', event: { keydown: fileNameInputKeyDown }" />
+                        <div>Enter filename.</div>
+                        <div>[Enter] = create/bind file, [ESC] = cancel</div>
+                    </div>
                 </div>
+                <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
+                <!-- ko foreach: files -->
+                    <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                        <a data-bind="click: removeFile, clickBubble: false, visible: current" class="remove-button" title="delete file and unbind from webpart">╳</a>
+                        <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file">☑</a>
+                        <span data-bind="text: shortUrl"></span>
+                    </div>
+                <!-- /ko -->
             </div>
-            <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
-            <!-- ko foreach: files -->
-            <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                <a data-bind="click: removeFile, clickBubble: false, visible: current" class="remove-button" title="delete file and unbind from webpart">╳</a>
-                <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file">☑</a>
-                <span data-bind="text: shortUrl"></span>
-            </div>
+        <!-- /ko -->
+        <div class="header other-files" data-bind="visible: !loading && otherFiles.length > 0">Other files on page</div>
+        <div class="files" data-bind="visible: !loading && otherFiles.length > 0">
+            <!-- ko foreach: otherFiles -->
+                <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                    <a data-bind="click: removeFile, clickBubble: false, visible: current" class="remove-button" title="delete file and unbind from webpart">╳</a>
+                    <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file">☑</a>
+                    <span data-bind="text: shortUrl"></span>
+                </div>
             <!-- /ko -->
         </div>
-        <!-- /ko -->
     </div>
     <div class="separator"></div>
     <div class="editor">

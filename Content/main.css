@@ -54,6 +54,9 @@
     cursor: default;
     font-size: 14px;
 }
+.header.other-files {
+    font-size: 12px;
+}
 
 .files {
     padding: 2px 1px;

@@ -24,12 +24,12 @@ module CSREditor {
 
                     var ctx = window["WPQ" + wpqId + "FormCtx"];
                     webparts.push({
-                        title: controlModeTitle[ctx.FormControlMode] + ': ' + ctx.ItemAttributes.Url,
+                        title: controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: true,
                         ctxKey: "WPQ" + wpqId + "FormCtx",
-                        listTemplateType: ctx.ListTemplateType
+                        listTemplateType: ctx.ListAttributes.ListTemplateType
                     });
 
                     var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
@@ -203,10 +203,10 @@ module CSREditor {
         }
 
 
-        public static getCode_performCSRRefresh(url: string, content: string, wpqId: number, isListForm: boolean, ctxKey: string) {
-            return "(" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "', " + wpqId + ", " + isListForm + ", '" + ctxKey + "');";
+        public static getCode_performCSRRefresh(url: string, content: string) {
+            return "(" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "');";
         }
-        private static performCSRRefresh(url: string, content: string, wpqId: number, isListForm: boolean, ctxKey: string) {
+        private static performCSRRefresh(url: string, content: string) {
             
             var extend = function (dest, source) {
                 for (var p in source) {
@@ -233,28 +233,6 @@ module CSREditor {
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
 
-            if (isListForm) {
-                var i = 0;
-                var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
-                for (var f in window[ctxKey].ListSchema) {
-                    if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor")
-                        continue;
-                    var nodesToReplace = [];
-                    for (var n = 0; n < rows[i].childNodes.length; n++)
-                        if (rows[i].childNodes[n].nodeType != 8)
-                            nodesToReplace.push(rows[i].childNodes[n]);
-                    var span = document.createElement("span");
-                    span.id = "WPQ" + wpqId + window[ctxKey].ListAttributes.Id + f;
-                    rows[i].appendChild(span);
-                    for (var n = 0; n < nodesToReplace.length; n++)
-                        span.appendChild(nodesToReplace[n]);
-                    i++;
-                }
-            }
-            else
-                for (var f in window[ctxKey].ListSchema.Field)
-                    delete window[ctxKey].ListSchema.Field[f].fieldRenderer;
-
             if (window["g_templateOverrides_" + fileName])
                 substract_objects(SPClientTemplates.TemplateManager["_TemplateOverrides"], window["g_templateOverrides_" + fileName]);
 
@@ -277,20 +255,50 @@ module CSREditor {
                 SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
                 savedRegisterOverridesMethod(options);
 
-                window[ctxKey].DebugMode = true;
+                var wpqId = 2;
+                while ($get("WebPartWPQ" + wpqId) != null) {
+                    var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
+                    if (window["WPQ" + wpqId + "FormCtx"]) {
 
-                if (isListForm)
-                    window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
-                else if (window[ctxKey].inGridMode)
-                {
-                    var searchDiv = $get("inplaceSearchDiv_" + wpqId);
-                    searchDiv.parentNode.removeChild(searchDiv);
-                    var gridInitInfo = window["g_SPGridInitInfo"][window[ctxKey].view];
-                    gridInitInfo.initialized = false
-                    window["InitGrid"](gridInitInfo, window[ctxKey], false);
+                        var ctx = window["WPQ" + wpqId + "FormCtx"];
+                        var i = 0;
+                        var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
+                        for (var f in ctx.ListSchema) {
+                            if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor")
+                                continue;
+                            var nodesToReplace = [];
+                            for (var n = 0; n < rows[i].childNodes.length; n++)
+                                if (rows[i].childNodes[n].nodeType != 8)
+                                    nodesToReplace.push(rows[i].childNodes[n]);
+                            var span = document.createElement("span");
+                            span.id = "WPQ" + wpqId + ctx.ListAttributes.Id + f;
+                            rows[i].appendChild(span);
+                            for (var n = 0; n < nodesToReplace.length; n++)
+                                span.appendChild(nodesToReplace[n]);
+                            i++;
+                        }
+
+                        window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
+
+                    } else if (window["WPQ" + wpqId + "SchemaData"]) {
+
+                        var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
+                        var ctx = window["ctx" + ctxNumber];
+                        for (var f in ctx.ListSchema.Field)
+                            delete ctx.ListSchema.Field[f].fieldRenderer;
+                        ctx.DebugMode = true;
+                        if (ctx.inGridMode) {
+                            var searchDiv = $get("inplaceSearchDiv_WPQ" + wpqId);
+                            searchDiv.parentNode.removeChild(searchDiv);
+                            var gridInitInfo = window["g_SPGridInitInfo"][ctx.view];
+                            gridInitInfo.initialized = false;
+                            window["InitGrid"](gridInitInfo, ctx, false);
+                        }
+                        else
+                            window["RenderListView"](ctx, ctx.wpq);
+                    }
+                    wpqId++;
                 }
-                else
-                    window["RenderListView"](window[ctxKey], window[ctxKey].wpq);
 
             }
 

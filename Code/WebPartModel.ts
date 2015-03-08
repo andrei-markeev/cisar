@@ -39,7 +39,10 @@
                     file.current = true;
                 }
                 this.fileFlags[url] = 1;
+                return file;
             }
+            else
+                return null;
         }
 
 
@@ -117,7 +120,7 @@
                                         this.loading = false;
                                         clearInterval(handle);
                                         if (result2 == "created")
-                                            this.fileWasCreated(this.newFileName, result2);
+                                            this.fileWasCreated(this.newFileName);
                                         else if (result2 == "error")
                                             alert("There was an error when creating the file. Please check console for details.");
                                     }
@@ -131,12 +134,12 @@
 
         }
 
-        private fileWasCreated(newFileName, result) {
+        private fileWasCreated(newFileName) {
 
             var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
             this.appendFileToList(fullUrl, true);
 
-            var wptype = result.isListForm ? "LFWP" : "XLV";
+            var wptype = this.isListForm ? "LFWP" : "XLV";
             this.root.setEditorText(fullUrl,
                 '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
                 '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
@@ -149,7 +152,7 @@
                 '      // OnPreRender: function(ctx) { },\r\n\r\n' +
                 '      Templates: {\r\n\r\n' +
 
-                (result.isListForm ? '' :
+                (this.isListForm ? '' :
                     '      //     View: function(ctx) { return ""; },\r\n' +
                     '      //     Header: function(ctx) { return ""; },\r\n' +
                     '      //     Body: function(ctx) { return ""; },\r\n' +
@@ -166,7 +169,7 @@
                 '      //         }\r\n' +
                 '      //     },\r\n' +
 
-                (result.isListForm ? '' :
+                (this.isListForm ? '' :
                     '      //     Footer: function(ctx) { return ""; }\r\n'
                     ) +
 

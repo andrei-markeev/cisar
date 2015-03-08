@@ -6,7 +6,10 @@ module CSREditor {
         constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
-            CSREditor.ChromeIntegration.eval(SPActions.getCode_listCsrWebparts(), (result, errorInfo) => {
+            this.webparts = [];
+            this.loading = true;
+
+            CSREditor.ChromeIntegration.eval(SPActions.getCode_listCsrWebparts(),(result, errorInfo) => {
                 if (errorInfo) {
                     console.log(errorInfo);
                     return;
@@ -31,12 +34,21 @@ module CSREditor {
                                 console.log(errorInfo);
                             else if (result2 != "wait") {
                                 clearInterval(handle);
+                                this.loading = false;
                                 if (result2 == "error")
-                                    alert("There was an error when creating the file. Please check console for details.");
+                                    alert("There was an error when getting list of files. Please check console for details.");
                                 else {
                                     for (var wpqId in result2) {
-                                        for (var f = 0; f < result2[wpqId].length; f++)
-                                            wpDict[wpqId].appendFileToList(result2[wpqId][f]);
+                                        for (var f = 0; f < result2[wpqId].length; f++) {
+                                            var addedFile = wpDict[wpqId].appendFileToList(result2[wpqId][f]);
+
+                                            if (addedFile != null) {
+                                                for (var o = this.otherFiles.length - 1; o >= 0; o--) {
+                                                    if (this.otherFiles[o].url == addedFile.url)
+                                                        this.otherFiles.remove(this.otherFiles[o]);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -45,7 +57,6 @@ module CSREditor {
 
                 }, 400);
             });
-            this.webparts = [];
 
 
             (<HTMLDivElement>document.querySelector('.separator')).onclick = (ev: MouseEvent) => {
@@ -56,9 +67,24 @@ module CSREditor {
             };
         }
 
+        public addOtherFiles(fileUrls: string[]) {
+            for (var i = 0; i < fileUrls.length; i++) {
+                var url = fileUrls[i];
+                url = Utils.cutOffQueryString(url.replace(this.siteUrl,'').toLowerCase().replace(/ /g, '%20'));
+                var fileModel = new FileModel(null, this);
+                fileModel.url = url;
+                fileModel.shortUrl = url.substr(url.lastIndexOf('/') + 1);
+                fileModel.justCreated = false;
+                fileModel.current = false;
+                this.otherFiles.push(fileModel);
+            }
+        }
+
+        public loading: boolean;
         public currentWebPart: WebPartModel;
         public currentFile: FileModel;
         public webparts: WebPartModel[];
+        public otherFiles: FileModel[] = [];
 
         public loadFileToEditor: { (url: string): void };
         public setEditorText: { (url: string, text: string, newlyCreated?: boolean): void };
@@ -85,7 +111,7 @@ module CSREditor {
 
             content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'").replace(/\\/g, "\\\\");
 
-            CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content, this.currentWebPart.wpq, this.currentWebPart.isListForm, this.currentWebPart.ctxKey));
+            CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content));
         }
 
         public saveChangesToFile(url: string, content: string) {
