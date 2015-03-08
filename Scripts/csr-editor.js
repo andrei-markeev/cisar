@@ -187,7 +187,11 @@ var CSREditor;
         FilesList.prototype.pathInputKeyDown = function (data, event) {
             var _this = this;
             return CSREditor.Utils.safeEnterPath(event, this.filesPath, function () {
+                if (_this.filesPath[0] != '/')
+                    _this.filesPath = '/' + _this.filesPath;
                 _this.changePathDialogShown = false;
+                if (_this.filesPath[_this.filesPath.length - 1] != '/')
+                    _this.filesPath = _this.filesPath + '/';
             }, function () {
                 _this.changePathDialogShown = false;
             });

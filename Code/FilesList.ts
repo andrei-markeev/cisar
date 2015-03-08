@@ -88,7 +88,15 @@ module CSREditor {
             return Utils.safeEnterPath(
                 event,
                 this.filesPath,
-                () => { this.changePathDialogShown = false; },
+                () => {
+                    if (this.filesPath[0] != '/')
+                        this.filesPath = '/' + this.filesPath;
+
+                    this.changePathDialogShown = false;
+
+                    if (this.filesPath[this.filesPath.length - 1] != '/')
+                        this.filesPath = this.filesPath + '/';
+                },
                 () => { this.changePathDialogShown = false; }
             );
         }
