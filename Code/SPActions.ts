@@ -173,15 +173,20 @@ module CSREditor {
                         var creationInfo = new SP.FileCreationInformation();
                         creationInfo.set_content(new SP.Base64EncodedByteArray());
                         creationInfo.set_url(fileName);
-                        var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo)
-                        file.checkIn("Checked in by Cisar", SP.CheckinType.majorCheckIn);
-                        file.publish("Published by Cisar");
+                        var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo);
+                        context.load(file, 'CheckOutType');
 
                         setupJsLink(properties);
 
                         context.executeQueryAsync(function () {
                             console.log('Cisar: file has been created successfully.');
                             window["g_Cisar_fileCreationResult"] = "created";
+                            if (file.get_checkOutType() != SP.CheckOutType.none) {
+                                file.checkIn("Checked in by Cisar", SP.CheckinType.minorCheckIn);
+                                context.executeQueryAsync(function () {
+                                    console.log('Cisar: file has been checked in successfully.');
+                                }, fatalError);
+                            }
                         },
                         fatalError);
 
@@ -362,6 +367,10 @@ module CSREditor {
             if (_spPageContextInfo.siteServerRelativeUrl != '/')
                 path = _spPageContextInfo.siteServerRelativeUrl + path;
 
+            var fatalError = function (sender, args) {
+                console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
+            };
+
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
 
@@ -374,10 +383,10 @@ module CSREditor {
                 file.checkIn("Checked in by Cisar", SP.CheckinType.minorCheckIn);
 
                 context.executeQueryAsync(function () {
-                    console.log('CSREditor: file saved successfully.');
+                    console.log('Cisar: file saved successfully.');
                 },
                 function (sender, args) {
-                    console.log('CSREditor fatal error when saving file ' + fileName + ': ' + args.get_message());
+                    console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
                 });
             });
         }
@@ -396,13 +405,24 @@ module CSREditor {
                 var context = SP.ClientContext.get_current();
 
                 var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
-                file.publish("Published by Cisar");
+                context.load(file, 'Level', 'CheckOutType');
 
                 context.executeQueryAsync(function () {
-                    console.log('CSREditor: file published successfully.');
+                    context.load(file, 'Level', 'CheckOutType');
+                    if (file.get_checkOutType() != SP.CheckOutType.none && file.get_level() == SP.FileLevel.draft) {
+                        file.publish("Published by Cisar");
+
+                        context.executeQueryAsync(function () {
+                            console.log('Cisar: file has been published successfully.');
+                        },
+                        function (sender, args) {
+                            console.log('Cisar fatal error when publishing file ' + fileName + ': ' + args.get_message());
+                        });
+                    }
+                    console.log('Cisar: file published successfully.');
                 },
                 function (sender, args) {
-                    console.log('CSREditor fatal error when publishing file ' + fileName + ': ' + args.get_message());
+                    console.log('Cisar fatal error when publishing file ' + fileName + ': ' + args.get_message());
                 });
             });
         }
@@ -437,14 +457,14 @@ module CSREditor {
                     properties.set_item("JSLink", jsLinkString);
                     webpartDef.saveWebPartChanges();
                     context.executeQueryAsync(function () {
-                        console.log('CSREditor: file ' + fileName + ' was successfully moved to recycle bin and removed from the XLV/LFWP.');
+                        console.log('Cisar: file ' + fileName + ' was successfully moved to recycle bin and removed from the XLV/LFWP.');
                     },
                     function (sender, args) {
-                        console.log('CSREditor error when unlinking file ' + fileName + ' from the XLV/LFWP: ' + args.get_message());
+                        console.log('Cisar error when unlinking file ' + fileName + ' from the XLV/LFWP: ' + args.get_message());
                     });
                 },
                 function (sender, args) {
-                    console.log('CSREditor fatal error when saving file ' + fileName + ': ' + args.get_message());
+                    console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
                 });
             });
 
