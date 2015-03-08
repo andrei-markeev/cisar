@@ -155,9 +155,10 @@
     margin-top: 4px;
     margin-left: 16px;
 }
-
+.files > div a {
+    display: initial;
+}
 .files > div.add .change-path {
-    border-bottom: 1px dashed #008693;
     cursor: pointer;
 }
 
@@ -190,4 +191,30 @@
     background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAYAAAC09K7GAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9sJDw4cOCW1/KIAAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAAAHElEQVQI12NggIL/DAz/GdA5/xkY/qPKMDAwAADLZwf5rvm+LQAAAABJRU5ErkJggg==");
     background-position: bottom left;
     background-repeat: repeat-x;
+}
+
+.dimmer {
+    background-color: #ddf;
+    opacity: 0.5;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 101;
+}
+.change-path-dialog {
+    position: fixed;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+    width: 300px;
+    top: 70px;
+    left: 70px;
+    z-index: 102;
+}
+
+.change-path-dialog input {
+    margin-top: 4px;
+    width: 260px;
 }

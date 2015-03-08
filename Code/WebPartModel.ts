@@ -55,42 +55,12 @@
             this.adding = true;
         }
 
-        public fileNameInputKeyDown(data, event) {
-            return this.enterFileName(event, this.newFileName,() => { this.performNewFileCreation() },() => { this.adding = false; });
+        public displayChangePathDialog(data) {
+            this.root.changePathDialogShown = true;
         }
 
-        public enterFileName(event, value, okCallback, cancelCallback) {
-            if ((event.keyCode == 13 && value != "") || event.keyCode == 27) {
-
-                if (event.keyCode == 13)
-                    okCallback();
-                else
-                    cancelCallback();
-
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            else {
-                var safe = false;
-                if (event.keyCode >= 65 && event.keyCode <= 90)
-                    safe = true;
-                if (event.keyCode >= 48 && event.keyCode <= 57 && event.shiftKey == false)
-                    safe = true;
-                if ([8, 35, 36, 37, 38, 39, 40, 46, 189].indexOf(event.keyCode) > -1)
-                    safe = true;
-                if (event.keyCode == 190 && event.shiftKey == false)
-                    safe = true;
-                if (event.char == "")
-                    safe = true;
-
-                if (!safe) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    console.groupEnd();
-                    return false;
-                }
-            }
-            return true;
+        public fileNameInputKeyDown(data, event) {
+            return Utils.safeEnterFileName(event, this.newFileName,() => { this.performNewFileCreation() },() => { this.adding = false; });
         }
 
         private performNewFileCreation() {

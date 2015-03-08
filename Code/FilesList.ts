@@ -3,11 +3,25 @@
 module CSREditor {
     export class FilesList {
 
+        public changePathDialogShown: boolean = false;
+        public loading: boolean;
+        public currentWebPart: WebPartModel;
+        public currentFile: FileModel;
+        public webparts: WebPartModel[];
+        public otherFiles: FileModel[] = [];
+
+        public loadFileToEditor: { (url: string): void };
+        public setEditorText: { (url: string, text: string, newlyCreated?: boolean): void };
+
+        public filesPath: string;
+        public siteUrl: string = "";
+
         constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
             this.webparts = [];
             this.loading = true;
+            this.filesPath = localStorage['filesPath'] || "/Style Library/";
 
             CSREditor.ChromeIntegration.eval(SPActions.getCode_listCsrWebparts(),(result, errorInfo) => {
                 if (errorInfo) {
@@ -21,6 +35,9 @@ module CSREditor {
                     this.webparts.push(wp);
                 }
                 ko.track(this);
+                ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
+                    localStorage['filesPath'] = newValue;
+                });
                 ko.applyBindings(this);
 
                 var handle = setInterval(() => {
@@ -67,6 +84,16 @@ module CSREditor {
             };
         }
 
+        public pathInputKeyDown(data, event) {
+            return Utils.safeEnterPath(
+                event,
+                this.filesPath,
+                () => { this.changePathDialogShown = false; },
+                () => { this.changePathDialogShown = false; }
+            );
+        }
+
+
         public addOtherFiles(fileUrls: string[]) {
             for (var i = 0; i < fileUrls.length; i++) {
                 var url = fileUrls[i];
@@ -79,23 +106,6 @@ module CSREditor {
                 this.otherFiles.push(fileModel);
             }
         }
-
-        public loading: boolean;
-        public currentWebPart: WebPartModel;
-        public currentFile: FileModel;
-        public webparts: WebPartModel[];
-        public otherFiles: FileModel[] = [];
-
-        public loadFileToEditor: { (url: string): void };
-        public setEditorText: { (url: string, text: string, newlyCreated?: boolean): void };
-
-        public get filesPath(): string {
-            return localStorage['filesPath'] || "/Style Library/";
-        }
-        public set filesPath(value: string) {
-            localStorage['filesPath'] = value;
-        }
-        public siteUrl: string = "";
 
 
         private savingQueue: { [url: string]: any } = {};

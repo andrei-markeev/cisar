@@ -26,8 +26,8 @@ Known problems and important notes
 ----------------------------------
 Cisar is rather young. Below listed known bugs, inconveniences and notes. I'm working on improvements, but for now it is how it is:
 
-  1. Files that are created are stored in Style Library. For now there's no way to change this.
-  2. Library that hosts js files that are edited should have versioning (major+minor versions) and "require checkout" setting enabled for saving to work.
-  3. If there're errors when saving and editing files, they're logged in the "Console" tab in Developer Tools, but not shown anywhere else.
-  4. It is usually a good idea to disable caching ("Network" tab -> Disable cache checkbox).
+  1. Library that hosts js files that are edited/created should have versioning (major+minor versions) and "require checkout" setting enabled for saving to work.
+  2. If there're errors when saving files, they're logged in the "Console" tab in Developer Tools, but not shown anywhere else.
+  3. It is usually a very good idea to disable caching ("Network" tab -> Disable cache checkbox).
+  4. If you open Cisar, create a file, then close Dev tools, then open them again, and then you try to open the just created file in Cisar, you'll get empty file. Workaround: refresh page before opening Cisar again.
   5. Display Templates and also CSWP customizations aren't supported yet.

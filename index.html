@@ -36,6 +36,7 @@
                         <input type="text" data-bind="hasFocus: adding, value: newFileName, valueUpdate: 'afterkeydown', event: { keydown: fileNameInputKeyDown }" />
                         <div>Enter filename.</div>
                         <div>[Enter] = create/bind file, [ESC] = cancel</div>
+                        <div><a class="change-path" href="javascript:void();" data-bind="click: displayChangePathDialog">Change path...</a></div>
                     </div>
                 </div>
                 <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
@@ -62,6 +63,11 @@
     <div class="separator"></div>
     <div class="editor">
         <textarea id="editor"></textarea>
+    </div>
+    <div class="dimmer" data-bind="visible: changePathDialogShown, click: changePathDialogShown = false" style="display: none"></div>
+    <div class="change-path-dialog" data-bind="visible: changePathDialogShown" style="display: none">
+        <div>Enter site collection-relative path to library and folder where you want the files created by Cisar to be stored (the path must exist):</div>
+        <input type="text" data-bind="hasFocus: changePathDialogShown, value: filesPath, valueUpdate: 'afterkeydown', event: { keydown: pathInputKeyDown }" />
     </div>
 
     <script type="text/javascript" src="Scripts/app.js"></script>

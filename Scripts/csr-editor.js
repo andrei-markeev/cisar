@@ -125,6 +125,7 @@ var CSREditor;
     var FilesList = (function () {
         function FilesList(loadUrlToEditor, setEditorText) {
             var _this = this;
+            this.changePathDialogShown = false;
             this.otherFiles = [];
             this.siteUrl = "";
             this.savingQueue = {};
@@ -133,6 +134,7 @@ var CSREditor;
             this.setEditorText = setEditorText;
             this.webparts = [];
             this.loading = true;
+            this.filesPath = localStorage['filesPath'] || "/Style Library/";
             CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_listCsrWebparts(), function (result, errorInfo) {
                 if (errorInfo) {
                     console.log(errorInfo);
@@ -145,6 +147,9 @@ var CSREditor;
                     _this.webparts.push(wp);
                 }
                 ko.track(_this);
+                ko.getObservable(_this, 'filesPath').subscribe(function (newValue) {
+                    localStorage['filesPath'] = newValue;
+                });
                 ko.applyBindings(_this);
                 var handle = setInterval(function () {
                     CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (result2, errorInfo) {
@@ -179,6 +184,14 @@ var CSREditor;
                     document.body.className += " fullscreen";
             };
         }
+        FilesList.prototype.pathInputKeyDown = function (data, event) {
+            var _this = this;
+            return CSREditor.Utils.safeEnterPath(event, this.filesPath, function () {
+                _this.changePathDialogShown = false;
+            }, function () {
+                _this.changePathDialogShown = false;
+            });
+        };
         FilesList.prototype.addOtherFiles = function (fileUrls) {
             for (var i = 0; i < fileUrls.length; i++) {
                 var url = fileUrls[i];
@@ -191,16 +204,6 @@ var CSREditor;
                 this.otherFiles.push(fileModel);
             }
         };
-        Object.defineProperty(FilesList.prototype, "filesPath", {
-            get: function () {
-                return localStorage['filesPath'] || "/Style Library/";
-            },
-            set: function (value) {
-                localStorage['filesPath'] = value;
-            },
-            enumerable: true,
-            configurable: true
-        });
         FilesList.prototype.refreshCSR = function (url, content) {
             this.currentFile.published = false;
             url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
@@ -1042,6 +1045,43 @@ var CSREditor;
                 s = s.substr(0, s.indexOf('?'));
             return s;
         };
+        Utils.safeEnterFileName = function (event, value, okCallback, cancelCallback) {
+            return Utils.safeEnterValue(event, value, okCallback, cancelCallback, false);
+        };
+        Utils.safeEnterPath = function (event, value, okCallback, cancelCallback) {
+            return Utils.safeEnterValue(event, value, okCallback, cancelCallback, true);
+        };
+        Utils.safeEnterValue = function (event, value, okCallback, cancelCallback, isPath) {
+            if ((event.keyCode == 13 && value != "") || event.keyCode == 27) {
+                if (event.keyCode == 13)
+                    okCallback();
+                else
+                    cancelCallback();
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            else {
+                var safe = false;
+                if (event.keyCode >= 65 && event.keyCode <= 90)
+                    safe = true;
+                if (event.keyCode >= 48 && event.keyCode <= 57 && event.shiftKey == false)
+                    safe = true;
+                if ([8, 35, 36, 37, 38, 39, 40, 46, 189].indexOf(event.keyCode) > -1)
+                    safe = true;
+                if (event.keyCode == 190 && event.shiftKey == false)
+                    safe = true;
+                if (event.char == "")
+                    safe = true;
+                if ([191, 32].indexOf(event.keyCode) > -1 && isPath)
+                    safe = true;
+                if (!safe) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+            }
+            return true;
+        };
         return Utils;
     })();
     CSREditor.Utils = Utils;
@@ -1090,43 +1130,16 @@ var CSREditor;
             this.newFileName = '';
             this.adding = true;
         };
+        WebPartModel.prototype.displayChangePathDialog = function (data) {
+            this.root.changePathDialogShown = true;
+        };
         WebPartModel.prototype.fileNameInputKeyDown = function (data, event) {
             var _this = this;
-            return this.enterFileName(event, this.newFileName, function () {
+            return CSREditor.Utils.safeEnterFileName(event, this.newFileName, function () {
                 _this.performNewFileCreation();
             }, function () {
                 _this.adding = false;
             });
-        };
-        WebPartModel.prototype.enterFileName = function (event, value, okCallback, cancelCallback) {
-            if ((event.keyCode == 13 && value != "") || event.keyCode == 27) {
-                if (event.keyCode == 13)
-                    okCallback();
-                else
-                    cancelCallback();
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            else {
-                var safe = false;
-                if (event.keyCode >= 65 && event.keyCode <= 90)
-                    safe = true;
-                if (event.keyCode >= 48 && event.keyCode <= 57 && event.shiftKey == false)
-                    safe = true;
-                if ([8, 35, 36, 37, 38, 39, 40, 46, 189].indexOf(event.keyCode) > -1)
-                    safe = true;
-                if (event.keyCode == 190 && event.shiftKey == false)
-                    safe = true;
-                if (event.char == "")
-                    safe = true;
-                if (!safe) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    console.groupEnd();
-                    return false;
-                }
-            }
-            return true;
         };
         WebPartModel.prototype.performNewFileCreation = function () {
             var _this = this;
