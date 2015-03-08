@@ -115,6 +115,8 @@ module CSREditor {
         }
         private static createFileInSharePoint(path: string, fileName: string, wpId: string, ctxKey: string) {
             path = path.replace('%20', ' ');
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+                path = _spPageContextInfo.siteServerRelativeUrl + path;
 
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
@@ -357,6 +359,8 @@ module CSREditor {
 
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+                path = _spPageContextInfo.siteServerRelativeUrl + path;
 
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
@@ -384,6 +388,8 @@ module CSREditor {
         private static publishFileToSharePoint(url: string) {
 
             var path = url.substr(0, url.lastIndexOf('/'));
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+                path = _spPageContextInfo.siteServerRelativeUrl + path;
             var fileName = url.substr(url.lastIndexOf('/') + 1);
 
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {

@@ -610,6 +610,8 @@ var CSREditor;
         };
         SPActions.createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
             path = path.replace('%20', ' ');
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+                path = _spPageContextInfo.siteServerRelativeUrl + path;
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
                 var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
@@ -811,6 +813,8 @@ var CSREditor;
         SPActions.saveFileToSharePoint = function (url, content64) {
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+                path = _spPageContextInfo.siteServerRelativeUrl + path;
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
                 var saveInfo = new SP.FileSaveBinaryInformation();
@@ -831,6 +835,8 @@ var CSREditor;
         };
         SPActions.publishFileToSharePoint = function (url) {
             var path = url.substr(0, url.lastIndexOf('/'));
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+                path = _spPageContextInfo.siteServerRelativeUrl + path;
             var fileName = url.substr(url.lastIndexOf('/') + 1);
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
