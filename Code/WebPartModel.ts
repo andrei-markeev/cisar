@@ -91,6 +91,11 @@
                                         clearInterval(handle);
                                         if (result2 == "created")
                                             this.fileWasCreated(this.newFileName);
+                                        else if (result2 == "existing")
+                                        {
+                                            var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + this.newFileName).toLowerCase();
+                                            this.appendFileToList(fullUrl, false);
+                                        }
                                         else if (result2 == "error")
                                             alert("There was an error when creating the file. Please check console for details.");
                                     }

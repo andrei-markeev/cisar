@@ -213,7 +213,7 @@ var CSREditor;
             url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
-            content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/'/g, "\\'").replace(/\\/g, "\\\\");
+            content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_performCSRRefresh(url, content));
         };
         FilesList.prototype.saveChangesToFile = function (url, content) {
@@ -1185,6 +1185,10 @@ var CSREditor;
                                 clearInterval(handle);
                                 if (result2 == "created")
                                     _this.fileWasCreated(_this.newFileName);
+                                else if (result2 == "existing") {
+                                    var fullUrl = (_this.root.siteUrl + _this.root.filesPath.replace(' ', '%20') + _this.newFileName).toLowerCase();
+                                    _this.appendFileToList(fullUrl, false);
+                                }
                                 else if (result2 == "error")
                                     alert("There was an error when creating the file. Please check console for details.");
                             }
