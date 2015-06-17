@@ -271,7 +271,7 @@ module CSREditor {
                         var i = 0;
                         var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
                         for (var f in ctx.ListSchema) {
-                            if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor")
+                            if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
                                 continue;
                             var nodesToReplace = [];
                             for (var n = 0; n < rows[i].childNodes.length; n++)
