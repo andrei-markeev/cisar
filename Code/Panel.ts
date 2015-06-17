@@ -85,7 +85,11 @@
                 this.modifiedFilesContent[url] = text;
             ChromeIntegration.eval(SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), (result, errorInfo) => {
                 var fieldNames = [];
-                for (var i = 0; i < result.length; i++) {
+                for (var i in result) {
+                    var f = result[i].Name;
+                    if (this.filesList.currentWebPart.isListForm && (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString"))
+                        continue;
+
                     fieldNames.push(result[i].Name);
                 }
                 this.intellisenseHelper.setFieldInternalNames(fieldNames);

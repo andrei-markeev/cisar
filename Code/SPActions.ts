@@ -106,7 +106,7 @@ module CSREditor {
         }
 
         private static retrieveFieldsInfo(ctxKey) {
-            return window[ctxKey].ListSchema.Field;
+            return window[ctxKey].ListSchema.Field || window[ctxKey].ListSchema;
         }
 
 

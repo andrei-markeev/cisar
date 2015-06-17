@@ -138,11 +138,18 @@
             var position = cm.indexFromPos(changePosition) + 1;
             var symbolInfo = this.typeScriptService.getSymbolInfo(position);
             var typeMembers = symbolInfo.symbol.type.getMembers();
-            if (typeMembers.length == 4
-                && typeMembers[0].name == "View"
-                && typeMembers[1].name == "EditForm"
-                && typeMembers[2].name == "DisplayForm"
-                && typeMembers[3].name == "NewForm") {
+            var found = true;
+            for (var i = 0; i < typeMembers.length; i++) {
+                if (typeMembers[i].name != "View"
+                    && typeMembers[i].name != "EditForm"
+                    && typeMembers[i].name != "DisplayForm"
+                    && typeMembers[i].name != "NewForm") {
+                    found = false;
+                    break;
+                }
+            }
+
+            if (found) {
 
                 var list = [];
                 for (var i = 0; i < this.fieldNames.length; i++) {

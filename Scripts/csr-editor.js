@@ -359,7 +359,14 @@ var CSREditor;
             var position = cm.indexFromPos(changePosition) + 1;
             var symbolInfo = this.typeScriptService.getSymbolInfo(position);
             var typeMembers = symbolInfo.symbol.type.getMembers();
-            if (typeMembers.length == 4 && typeMembers[0].name == "View" && typeMembers[1].name == "EditForm" && typeMembers[2].name == "DisplayForm" && typeMembers[3].name == "NewForm") {
+            var found = true;
+            for (var i = 0; i < typeMembers.length; i++) {
+                if (typeMembers[i].name != "View" && typeMembers[i].name != "EditForm" && typeMembers[i].name != "DisplayForm" && typeMembers[i].name != "NewForm") {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) {
                 var list = [];
                 for (var i = 0; i < this.fieldNames.length; i++) {
                     // field internal names
@@ -473,7 +480,10 @@ var CSREditor;
                 this.modifiedFilesContent[url] = text;
             CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), function (result, errorInfo) {
                 var fieldNames = [];
-                for (var i = 0; i < result.length; i++) {
+                for (var i in result) {
+                    var f = result[i].Name;
+                    if (_this.filesList.currentWebPart.isListForm && (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString"))
+                        continue;
                     fieldNames.push(result[i].Name);
                 }
                 _this.intellisenseHelper.setFieldInternalNames(fieldNames);
@@ -607,7 +617,7 @@ var CSREditor;
             return "(" + SPActions.retrieveFieldsInfo + ")('" + ctxKey + "');";
         };
         SPActions.retrieveFieldsInfo = function (ctxKey) {
-            return window[ctxKey].ListSchema.Field;
+            return window[ctxKey].ListSchema.Field || window[ctxKey].ListSchema;
         };
         SPActions.getCode_createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
             return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + ctxKey + "');";
