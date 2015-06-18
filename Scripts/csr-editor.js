@@ -192,9 +192,7 @@ var CSREditor;
                 _this.changePathDialogShown = false;
                 if (_this.filesPath[_this.filesPath.length - 1] != '/')
                     _this.filesPath = _this.filesPath + '/';
-            }, function () {
-                _this.changePathDialogShown = false;
-            });
+            }, function () { _this.changePathDialogShown = false; });
         };
         FilesList.prototype.addOtherFiles = function (fileUrls) {
             for (var i = 0; i < fileUrls.length; i++) {
@@ -298,9 +296,7 @@ var CSREditor;
                             $(element).tooltip({
                                 html: true,
                                 title: '<div class="tooltip-typeInfo">' + completion.typeInfo + '</div>' + '<div class="tooltip-docComment">' + completion.docComment.replace('\n', '<br/>') + '</div>',
-                                trigger: 'manual',
-                                container: 'body',
-                                placement: 'right'
+                                trigger: 'manual', container: 'body', placement: 'right'
                             });
                             $(element).tooltip('show');
                         }
@@ -345,9 +341,7 @@ var CSREditor;
                 $(domElement).data('bs.tooltip', false).tooltip({
                     html: true,
                     title: '<div class="tooltip-typeInfo">' + signature.formal[0].signatureInfo + '</div>' + '<div class="tooltip-docComment">' + signature.formal[0].docComment.replace('\n', '<br/>') + '</div>',
-                    trigger: 'manual',
-                    container: 'body',
-                    placement: 'bottom'
+                    trigger: 'manual', container: 'body', placement: 'bottom'
                 });
                 $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
                     $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px");
@@ -361,7 +355,10 @@ var CSREditor;
             var typeMembers = symbolInfo.symbol.type.getMembers();
             var found = true;
             for (var i = 0; i < typeMembers.length; i++) {
-                if (typeMembers[i].name != "View" && typeMembers[i].name != "EditForm" && typeMembers[i].name != "DisplayForm" && typeMembers[i].name != "NewForm") {
+                if (typeMembers[i].name != "View"
+                    && typeMembers[i].name != "EditForm"
+                    && typeMembers[i].name != "DisplayForm"
+                    && typeMembers[i].name != "NewForm") {
                     found = false;
                     break;
                 }
@@ -390,7 +387,8 @@ var CSREditor;
             else if (changeObj.text.length == 1 && changeObj.text[0] == ')') {
                 $('.tooltip').remove();
             }
-            else if ((changeObj.from.ch > 0 && cm.getRange({ ch: changeObj.from.ch - 1, line: changeObj.from.line }, changeObj.from) == '"') || changeObj.text.length == 1 && changeObj.text[0] == '"') {
+            else if ((changeObj.from.ch > 0 && cm.getRange({ ch: changeObj.from.ch - 1, line: changeObj.from.line }, changeObj.from) == '"')
+                || changeObj.text.length == 1 && changeObj.text[0] == '"') {
                 this.showFieldInternalNamesDropDown(cm, changeObj.to);
             }
             //else if (changeObj.from.ch > 0 && /^\s[a-zA-Z][a-zA-Z0-9]$/.test(cm.getRange({ ch: changeObj.from.ch - 3, line: changeObj.from.line }, changeObj.from))) {
@@ -463,9 +461,7 @@ var CSREditor;
                     "Ctrl-K": "toggleComment"
                 }
             });
-            editor.on("change", function (editor, changeList) {
-                _this.processChanges(editor.getDoc(), changeList);
-            });
+            editor.on("change", function (editor, changeList) { _this.processChanges(editor.getDoc(), changeList); });
             return editor;
         };
         Panel.prototype.setEditorText = function (url, text, newlyCreated) {
@@ -547,13 +543,19 @@ var CSREditor;
                 var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
                 if (window["WPQ" + wpqId + "FormCtx"]) {
                     var ctx = window["WPQ" + wpqId + "FormCtx"];
+                    // add fields to context
+                    var fields = [];
+                    for (var f in ctx.FieldControlModes) {
+                        fields.push(f);
+                    }
                     webparts.push({
                         title: controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: true,
                         ctxKey: "WPQ" + wpqId + "FormCtx",
-                        listTemplateType: ctx.ListAttributes.ListTemplateType
+                        listTemplateType: ctx.ListAttributes.ListTemplateType,
+                        fields: fields
                     });
                     var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
                     var webpart = webpartDef.get_webPart();
@@ -896,7 +898,13 @@ var CSREditor;
                 var properties = webpart.get_properties();
                 context.load(properties);
                 context.executeQueryAsync(function () {
-                    var jsLinkString = properties.get_item("JSLink").replace("|~sitecollection" + url, "").replace("~sitecollection" + url + "|", "").replace("~sitecollection" + url, "").replace("|~sitecollection" + url.replace('%20', ' '), "").replace("~sitecollection" + url.replace('%20', ' ') + "|", "").replace("~sitecollection" + url.replace('%20', ' '), "");
+                    var jsLinkString = properties.get_item("JSLink")
+                        .replace("|~sitecollection" + url, "")
+                        .replace("~sitecollection" + url + "|", "")
+                        .replace("~sitecollection" + url, "")
+                        .replace("|~sitecollection" + url.replace('%20', ' '), "")
+                        .replace("~sitecollection" + url.replace('%20', ' ') + "|", "")
+                        .replace("~sitecollection" + url.replace('%20', ' '), "");
                     properties.set_item("JSLink", jsLinkString);
                     webpartDef.saveWebPartChanges();
                     context.executeQueryAsync(function () {
@@ -931,60 +939,24 @@ var CSREditor;
             this.text['live.ts'] = '';
             this.changes['live.ts'] = [];
         }
-        TypeScriptServiceHost.prototype.log = function (message) {
-            console.log("tsHost: " + message);
-        };
-        TypeScriptServiceHost.prototype.information = function () {
-            return true;
-        };
-        TypeScriptServiceHost.prototype.debug = function () {
-            return true;
-        };
-        TypeScriptServiceHost.prototype.warning = function () {
-            return true;
-        };
-        TypeScriptServiceHost.prototype.error = function () {
-            return true;
-        };
-        TypeScriptServiceHost.prototype.fatal = function () {
-            return true;
-        };
-        TypeScriptServiceHost.prototype.getCompilationSettings = function () {
-            return "{ \"noLib\": true }";
-        };
-        TypeScriptServiceHost.prototype.getScriptFileNames = function () {
-            return "[\"libs.ts\", \"live.ts\", \"csr-editor.ts\"]";
-        };
-        TypeScriptServiceHost.prototype.getScriptVersion = function (fn) {
-            return this.scriptVersion[fn];
-        };
-        TypeScriptServiceHost.prototype.getScriptIsOpen = function (fn) {
-            return true;
-        };
-        TypeScriptServiceHost.prototype.getLocalizedDiagnosticMessages = function () {
-            return "";
-        };
-        TypeScriptServiceHost.prototype.getCancellationToken = function () {
-            return null;
-        };
-        TypeScriptServiceHost.prototype.getScriptByteOrderMark = function (fn) {
-            return 0;
-        };
-        TypeScriptServiceHost.prototype.resolveRelativePath = function () {
-            return null;
-        };
-        TypeScriptServiceHost.prototype.fileExists = function (fn) {
-            return null;
-        };
-        TypeScriptServiceHost.prototype.directoryExists = function (dir) {
-            return null;
-        };
-        TypeScriptServiceHost.prototype.getParentDirectory = function (dir) {
-            return null;
-        };
-        TypeScriptServiceHost.prototype.getDiagnosticsObject = function () {
-            return null;
-        };
+        TypeScriptServiceHost.prototype.log = function (message) { console.log("tsHost: " + message); };
+        TypeScriptServiceHost.prototype.information = function () { return true; };
+        TypeScriptServiceHost.prototype.debug = function () { return true; };
+        TypeScriptServiceHost.prototype.warning = function () { return true; };
+        TypeScriptServiceHost.prototype.error = function () { return true; };
+        TypeScriptServiceHost.prototype.fatal = function () { return true; };
+        TypeScriptServiceHost.prototype.getCompilationSettings = function () { return "{ \"noLib\": true }"; };
+        TypeScriptServiceHost.prototype.getScriptFileNames = function () { return "[\"libs.ts\", \"live.ts\", \"csr-editor.ts\"]"; };
+        TypeScriptServiceHost.prototype.getScriptVersion = function (fn) { return this.scriptVersion[fn]; };
+        TypeScriptServiceHost.prototype.getScriptIsOpen = function (fn) { return true; };
+        TypeScriptServiceHost.prototype.getLocalizedDiagnosticMessages = function () { return ""; };
+        TypeScriptServiceHost.prototype.getCancellationToken = function () { return null; };
+        TypeScriptServiceHost.prototype.getScriptByteOrderMark = function (fn) { return 0; };
+        TypeScriptServiceHost.prototype.resolveRelativePath = function () { return null; };
+        TypeScriptServiceHost.prototype.fileExists = function (fn) { return null; };
+        TypeScriptServiceHost.prototype.directoryExists = function (dir) { return null; };
+        TypeScriptServiceHost.prototype.getParentDirectory = function (dir) { return null; };
+        TypeScriptServiceHost.prototype.getDiagnosticsObject = function () { return null; };
         TypeScriptServiceHost.prototype.getScriptSnapshot = function (fn) {
             var snapshot, snapshotChanges, snapshotVersion;
             if (fn == 'libs.ts') {
@@ -998,15 +970,9 @@ var CSREditor;
                 snapshotVersion = this.scriptVersion[fn];
             }
             return {
-                getText: function (s, e) {
-                    return snapshot.getText(s, e);
-                },
-                getLength: function () {
-                    return snapshot.getLength();
-                },
-                getLineStartPositions: function () {
-                    return "[" + snapshot.getLineStartPositions().toString() + "]";
-                },
+                getText: function (s, e) { return snapshot.getText(s, e); },
+                getLength: function () { return snapshot.getLength(); },
+                getLineStartPositions: function () { return "[" + snapshot.getLineStartPositions().toString() + "]"; },
                 getTextChangeRangeSinceVersion: function (version) {
                     if (snapshotVersion == 0 || snapshotChanges.length == 0)
                         return null;
@@ -1015,9 +981,7 @@ var CSREditor;
                 }
             };
         };
-        TypeScriptServiceHost.prototype.getLibLength = function () {
-            return this.libTextLength;
-        };
+        TypeScriptServiceHost.prototype.getLibLength = function () { return this.libTextLength; };
         TypeScriptServiceHost.prototype.scriptChanged = function (fn, newText, startPos, changeLength) {
             if (startPos === void 0) { startPos = 0; }
             if (changeLength === void 0) { changeLength = 0; }
@@ -1139,6 +1103,7 @@ var CSREditor;
             this.isListForm = info.isListForm;
             this.ctxKey = info.ctxKey;
             this.listTemplateType = info.listTemplateType;
+            this.fields = info.fields;
             ko.track(this);
         }
         WebPartModel.prototype.appendFileToList = function (url, justcreated) {
@@ -1172,11 +1137,7 @@ var CSREditor;
         };
         WebPartModel.prototype.fileNameInputKeyDown = function (data, event) {
             var _this = this;
-            return CSREditor.Utils.safeEnterFileName(event, this.newFileName, function () {
-                _this.performNewFileCreation();
-            }, function () {
-                _this.adding = false;
-            });
+            return CSREditor.Utils.safeEnterFileName(event, this.newFileName, function () { _this.performNewFileCreation(); }, function () { _this.adding = false; });
         };
         WebPartModel.prototype.performNewFileCreation = function () {
             var _this = this;
@@ -1210,8 +1171,48 @@ var CSREditor;
         WebPartModel.prototype.fileWasCreated = function (newFileName) {
             var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
             this.appendFileToList(fullUrl, true);
+            var fieldMarkup = '      //     Fields: {\r\n';
+            for (var f = 0; f < this.fields.length; f++) {
+                var field = this.fields[f];
+                fieldMarkup +=
+                    '      //         "' + field + '": {\r\n' +
+                        '      //             View: function(ctx) { return ""; },\r\n' +
+                        '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                        '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                        '      //             NewForm: function(ctx) { return ""; },\r\n' +
+                        '      //         }\r\n';
+            }
+            ;
+            fieldMarkup += '      //     },\r\n';
             var wptype = this.isListForm ? "LFWP" : "XLV";
-            this.root.setEditorText(fullUrl, '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' + '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' + 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' + '  function getBaseHtml(ctx) {\r\n' + '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' + '  }\r\n\r\n' + '  function init() {\r\n\r\n' + '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' + '      // OnPreRender: function(ctx) { },\r\n\r\n' + '      Templates: {\r\n\r\n' + (this.isListForm ? '' : '      //     View: function(ctx) { return ""; },\r\n' + '      //     Header: function(ctx) { return ""; },\r\n' + '      //     Body: function(ctx) { return ""; },\r\n' + '      //     Group: function(ctx) { return ""; },\r\n' + '      //     Item: function(ctx) { return ""; },\r\n') + '      //     Fields: {\r\n' + '      //         "<fieldInternalName>": {\r\n' + '      //             View: function(ctx) { return ""; },\r\n' + '      //             EditForm: function(ctx) { return ""; },\r\n' + '      //             DisplayForm: function(ctx) { return ""; },\r\n' + '      //             NewForm: function(ctx) { return ""; },\r\n' + '      //         }\r\n' + '      //     },\r\n' + (this.isListForm ? '' : '      //     Footer: function(ctx) { return ""; }\r\n') + '\r\n' + '      },\r\n\r\n' + '      // OnPostRender: function(ctx) { },\r\n\r\n' + '      ListTemplateType: ' + this.listTemplateType + '\r\n\r\n' + '    });\r\n' + '  }\r\n\r\n' + '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + newFileName + '"), init);\r\n' + '  init();\r\n\r\n' + '});\r\n', true);
+            this.root.setEditorText(fullUrl, '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
+                '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
+                'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
+                '  function getBaseHtml(ctx) {\r\n' +
+                '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
+                '  }\r\n\r\n' +
+                '  function init() {\r\n\r\n' +
+                '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
+                '      // OnPreRender: function(ctx) { },\r\n\r\n' +
+                '      Templates: {\r\n\r\n' +
+                (this.isListForm ? '' :
+                    '      //     View: function(ctx) { return ""; },\r\n' +
+                        '      //     Header: function(ctx) { return ""; },\r\n' +
+                        '      //     Body: function(ctx) { return ""; },\r\n' +
+                        '      //     Group: function(ctx) { return ""; },\r\n' +
+                        '      //     Item: function(ctx) { return ""; },\r\n') +
+                fieldMarkup +
+                (this.isListForm ? '' :
+                    '      //     Footer: function(ctx) { return ""; }\r\n') +
+                '\r\n' +
+                '      },\r\n\r\n' +
+                '      // OnPostRender: function(ctx) { },\r\n\r\n' +
+                '      ListTemplateType: ' + this.listTemplateType + '\r\n\r\n' +
+                '    });\r\n' +
+                '  }\r\n\r\n' +
+                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + newFileName + '"), init);\r\n' +
+                '  init();\r\n\r\n' +
+                '});\r\n', true);
         };
         return WebPartModel;
     })();
