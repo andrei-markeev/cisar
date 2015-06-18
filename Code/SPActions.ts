@@ -27,6 +27,10 @@ module CSREditor {
                     // add fields to context
                     var fields = [];
                     for (var f in ctx.FieldControlModes) {
+
+                        if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
+                            continue;
+
                         fields.push(f);
                     }
 

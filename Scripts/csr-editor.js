@@ -546,6 +546,8 @@ var CSREditor;
                     // add fields to context
                     var fields = [];
                     for (var f in ctx.FieldControlModes) {
+                        if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
+                            continue;
                         fields.push(f);
                     }
                     webparts.push({
@@ -1171,19 +1173,22 @@ var CSREditor;
         WebPartModel.prototype.fileWasCreated = function (newFileName) {
             var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
             this.appendFileToList(fullUrl, true);
-            var fieldMarkup = '      //     Fields: {\r\n';
-            for (var f = 0; f < this.fields.length; f++) {
-                var field = this.fields[f];
-                fieldMarkup +=
-                    '      //         "' + field + '": {\r\n' +
-                        '      //             View: function(ctx) { return ""; },\r\n' +
-                        '      //             EditForm: function(ctx) { return ""; },\r\n' +
-                        '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
-                        '      //             NewForm: function(ctx) { return ""; },\r\n' +
-                        '      //         }\r\n';
+            var fieldMarkup = '';
+            if (this.isListForm) {
+                fieldMarkup += '      //     Fields: {\r\n';
+                for (var f = 0; f < this.fields.length; f++) {
+                    var field = this.fields[f];
+                    fieldMarkup +=
+                        '      //         "' + field + '": {\r\n' +
+                            '      //             View: function(ctx) { return ""; },\r\n' +
+                            '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                            '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                            '      //             NewForm: function(ctx) { return ""; }\r\n';
+                    (f === this.fields.length - 1) ? '      //         }\r\n' : '      //         },\r\n';
+                }
+                ;
+                fieldMarkup += '      //     },\r\n';
             }
-            ;
-            fieldMarkup += '      //     },\r\n';
             var wptype = this.isListForm ? "LFWP" : "XLV";
             this.root.setEditorText(fullUrl, '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
                 '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +

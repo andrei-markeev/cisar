@@ -117,22 +117,29 @@
             var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
             this.appendFileToList(fullUrl, true);
 
-            var fieldMarkup = '      //     Fields: {\r\n';
+            var fieldMarkup = '';
 
-            for (var f = 0; f < this.fields.length; f++) {
-                var field = this.fields[f];
+            if (this.isListForm) {
 
-                fieldMarkup +=
+                fieldMarkup += '      //     Fields: {\r\n';
 
-                '      //         "' + field + '": {\r\n' +
-                '      //             View: function(ctx) { return ""; },\r\n' +
-                '      //             EditForm: function(ctx) { return ""; },\r\n' +
-                '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
-                '      //             NewForm: function(ctx) { return ""; },\r\n' +
-                '      //         }\r\n'
+                for (var f = 0; f < this.fields.length; f++) {
+                    var field = this.fields[f];
 
-            };
-            fieldMarkup += '      //     },\r\n';
+                    fieldMarkup +=
+
+                    '      //         "' + field + '": {\r\n' +
+                    '      //             View: function(ctx) { return ""; },\r\n' +
+                    '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                    '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                    '      //             NewForm: function(ctx) { return ""; }\r\n';
+
+                    (f === this.fields.length - 1) ? '      //         }\r\n' : '      //         },\r\n';
+
+                };
+                fieldMarkup += '      //     },\r\n';
+
+            }
 
             var wptype = this.isListForm ? "LFWP" : "XLV";
             this.root.setEditorText(fullUrl,
