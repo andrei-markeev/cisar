@@ -7,12 +7,14 @@ Google Chrome browser extension that adds a tab to Developer Tools, where you ca
 
 Installing
 ----------
-You can install the extension manually from the source code.
+Extension is available [on Chrome WebStore](https://chrome.google.com/webstore/detail/cisar/nifbdojdggkboiifaklkamfpjcmgafpo).
+
+Alternatively, you can install it manually from the source code:
 
  1. Download the source code archive from GitHub and unpack it to some folder
  2. Check the "Developer mode" checkbox on the extensions page
  3. Click [Load unpacked extension...] button
- 4. Select folder with the cisar source code
+ 4. Select folder with the Cisar source code
 
 Using
 -----
