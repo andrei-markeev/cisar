@@ -543,13 +543,21 @@ var CSREditor;
                 var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
                 if (window["WPQ" + wpqId + "FormCtx"]) {
                     var ctx = window["WPQ" + wpqId + "FormCtx"];
+                    // add fields to context
+                    var fields = [];
+                    for (var f in ctx.FieldControlModes) {
+                        if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
+                            continue;
+                        fields.push(f);
+                    }
                     webparts.push({
                         title: controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: true,
                         ctxKey: "WPQ" + wpqId + "FormCtx",
-                        listTemplateType: ctx.ListAttributes.ListTemplateType
+                        listTemplateType: ctx.ListAttributes.ListTemplateType,
+                        fields: fields
                     });
                     var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
                     var webpart = webpartDef.get_webPart();
@@ -1097,6 +1105,7 @@ var CSREditor;
             this.isListForm = info.isListForm;
             this.ctxKey = info.ctxKey;
             this.listTemplateType = info.listTemplateType;
+            this.fields = info.fields;
             ko.track(this);
         }
         WebPartModel.prototype.appendFileToList = function (url, justcreated) {
@@ -1164,6 +1173,27 @@ var CSREditor;
         WebPartModel.prototype.fileWasCreated = function (newFileName) {
             var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
             var file = this.appendFileToList(fullUrl, true);
+            if (!this.fields || this.fields.length == 0)
+                this.fields = ['<field internal name>'];
+            var fieldMarkup = '      //     Fields: {\r\n';
+            for (var f = 0; f < this.fields.length; f++) {
+                var field = this.fields[f];
+                if (field == "Attachments" || field == "Created" || field == "Modified"
+                    || field == "Author" || field == "Editor" || field == "_UIVersionString")
+                    continue;
+                fieldMarkup +=
+                    '      //         "' + field + '": {\r\n' +
+                        '      //             View: function(ctx) { return ""; },\r\n' +
+                        '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                        '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                        '      //             NewForm: function(ctx) { return ""; }\r\n' +
+                        ((f === this.fields.length - 1) ?
+                            '      //         }\r\n'
+                            :
+                                '      //         },\r\n');
+            }
+            ;
+            fieldMarkup += '      //     },\r\n';
             var wptype = this.isListForm ? "LFWP" : "XLV";
             this.root.setEditorText(file.url, '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
                 '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
@@ -1181,14 +1211,7 @@ var CSREditor;
                         '      //     Body: function(ctx) { return ""; },\r\n' +
                         '      //     Group: function(ctx) { return ""; },\r\n' +
                         '      //     Item: function(ctx) { return ""; },\r\n') +
-                '      //     Fields: {\r\n' +
-                '      //         "<fieldInternalName>": {\r\n' +
-                '      //             View: function(ctx) { return ""; },\r\n' +
-                '      //             EditForm: function(ctx) { return ""; },\r\n' +
-                '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
-                '      //             NewForm: function(ctx) { return ""; },\r\n' +
-                '      //         }\r\n' +
-                '      //     },\r\n' +
+                fieldMarkup +
                 (this.isListForm ? '' :
                     '      //     Footer: function(ctx) { return ""; }\r\n') +
                 '\r\n' +
