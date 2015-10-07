@@ -115,13 +115,14 @@ module CSREditor {
         }
         private static createFileInSharePoint(path: string, fileName: string, wpId: string, ctxKey: string) {
             path = path.replace('%20', ' ');
+            var fullPath = path;
             if (_spPageContextInfo.siteServerRelativeUrl != '/')
-                path = _spPageContextInfo.siteServerRelativeUrl + path;
+                fullPath = _spPageContextInfo.siteServerRelativeUrl + path;
 
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
 
-                var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
+                var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files();
                 context.load(files, "Include(Name)");
 
                 var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
@@ -140,7 +141,7 @@ module CSREditor {
                 }
 
                 var fatalError = function (sender, args) {
-                    console.log('Cisar fatal error: ' + args.get_message());
+                    console.log('Cisar fatal error when creating ' + fullPath + ': ' + args.get_message());
                     window["g_Cisar_fileCreationResult"] = "error";
                 }
 
@@ -156,7 +157,7 @@ module CSREditor {
                     if (fileExists) {
 
                         var script = document.createElement("script");
-                        script.src = _spPageContextInfo.siteAbsoluteUrl + path + fileName;
+                        script.src = fullPath + fileName;
                         script.type = "text/javascript";
                         document.head.appendChild(script);
 
@@ -173,7 +174,7 @@ module CSREditor {
                         var creationInfo = new SP.FileCreationInformation();
                         creationInfo.set_content(new SP.Base64EncodedByteArray());
                         creationInfo.set_url(fileName);
-                        var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().add(creationInfo);
+                        var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files().add(creationInfo);
                         context.load(file, 'CheckOutType');
 
                         setupJsLink(properties);
@@ -364,12 +365,6 @@ module CSREditor {
 
             var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
-            if (_spPageContextInfo.siteServerRelativeUrl != '/')
-                path = _spPageContextInfo.siteServerRelativeUrl + path;
-
-            var fatalError = function (sender, args) {
-                console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
-            };
 
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
@@ -386,7 +381,7 @@ module CSREditor {
                     console.log('Cisar: file saved successfully.');
                 },
                 function (sender, args) {
-                    console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
+                    console.log('Cisar fatal error when saving file ' + fileName + ' to path "' + path + '": ' + args.get_message());
                 });
             });
         }
@@ -397,8 +392,6 @@ module CSREditor {
         private static publishFileToSharePoint(url: string) {
 
             var path = url.substr(0, url.lastIndexOf('/'));
-            if (_spPageContextInfo.siteServerRelativeUrl != '/')
-                path = _spPageContextInfo.siteServerRelativeUrl + path;
             var fileName = url.substr(url.lastIndexOf('/') + 1);
 
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
@@ -422,7 +415,7 @@ module CSREditor {
                     console.log('Cisar: file published successfully.');
                 },
                 function (sender, args) {
-                    console.log('Cisar fatal error when publishing file ' + fileName + ': ' + args.get_message());
+                    console.log('Cisar fatal error when publishing file ' + fileName + ' to path "' + path + '": ' + args.get_message());
                 });
             });
         }
@@ -447,6 +440,8 @@ module CSREditor {
                 context.load(properties);
 
                 context.executeQueryAsync(function () {
+                    var oldJsLinkString = properties.get_item("JSLink");
+                    url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
                     var jsLinkString = properties.get_item("JSLink")
                         .replace("|~sitecollection" + url, "")
                         .replace("~sitecollection" + url + "|", "")
@@ -454,6 +449,10 @@ module CSREditor {
                         .replace("|~sitecollection" + url.replace('%20', ' '), "")
                         .replace("~sitecollection" + url.replace('%20', ' ') + "|", "")
                         .replace("~sitecollection" + url.replace('%20', ' '), "");
+                    if (jsLinkString == oldJsLinkString) {
+                        console.log('Cisar: ERROR, cannot remove ' + url + ' from ' + jsLinkString + '. Please edit page and remove this file manually.');
+                        return;
+                    }
                     properties.set_item("JSLink", jsLinkString);
                     webpartDef.saveWebPartChanges();
                     context.executeQueryAsync(function () {

@@ -108,14 +108,14 @@
     </VisualStudio>
   </ProjectExtensions>
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-    <TypeScriptOutFile>$(ProjectDir)Scripts\csr-editor.js</TypeScriptOutFile>
+    <TypeScriptOutFile>Scripts\csr-editor.js</TypeScriptOutFile>
     <TypeScriptTarget>ES5</TypeScriptTarget>
     <TypeScriptRemoveComments>false</TypeScriptRemoveComments>
     <TypeScriptSourceMap>true</TypeScriptSourceMap>
     <TypeScriptModuleKind>AMD</TypeScriptModuleKind>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <TypeScriptOutFile>$(ProjectDir)Scripts\csr-editor.js</TypeScriptOutFile>
+    <TypeScriptOutFile>Scripts\csr-editor.js</TypeScriptOutFile>
     <TypeScriptTarget>ES5</TypeScriptTarget>
     <TypeScriptRemoveComments>true</TypeScriptRemoveComments>
     <TypeScriptSourceMap>false</TypeScriptSourceMap>

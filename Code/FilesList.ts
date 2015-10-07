@@ -105,7 +105,7 @@ module CSREditor {
         public addOtherFiles(fileUrls: string[]) {
             for (var i = 0; i < fileUrls.length; i++) {
                 var url = fileUrls[i];
-                url = Utils.cutOffQueryString(url.replace(this.siteUrl,'').toLowerCase().replace(/ /g, '%20'));
+                url = Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
                 var fileModel = new FileModel(null, this);
                 fileModel.url = url;
                 fileModel.shortUrl = url.substr(url.lastIndexOf('/') + 1);

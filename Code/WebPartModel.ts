@@ -24,7 +24,7 @@
         private fileFlags: { [url: string]: number } = {};
 
         public appendFileToList(url: string, justcreated: boolean = false) {
-            url = Utils.cutOffQueryString(url.toLowerCase().replace(/ /g, '%20'));
+            url = Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
             if (!this.fileFlags[url]) {
                 var file = new FileModel(this, this.root);
                 file.url = url;
@@ -112,10 +112,10 @@
         private fileWasCreated(newFileName) {
 
             var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
-            this.appendFileToList(fullUrl, true);
+            var file = this.appendFileToList(fullUrl, true);
 
             var wptype = this.isListForm ? "LFWP" : "XLV";
-            this.root.setEditorText(fullUrl,
+            this.root.setEditorText(file.url,
                 '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
                 '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
                 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
