@@ -23,13 +23,25 @@ module CSREditor {
                 if (window["WPQ" + wpqId + "FormCtx"]) {
 
                     var ctx = window["WPQ" + wpqId + "FormCtx"];
+
+                    // add fields to context
+                    var fields = [];
+                    for (var f in ctx.FieldControlModes) {
+
+                        if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
+                            continue;
+
+                        fields.push(f);
+                    }
+
                     webparts.push({
                         title: controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: true,
                         ctxKey: "WPQ" + wpqId + "FormCtx",
-                        listTemplateType: ctx.ListAttributes.ListTemplateType
+                        listTemplateType: ctx.ListAttributes.ListTemplateType,
+                        fields: fields
                     });
 
                     var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));

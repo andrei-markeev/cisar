@@ -9,6 +9,8 @@
             this.isListForm = info.isListForm;
             this.ctxKey = info.ctxKey;
             this.listTemplateType = info.listTemplateType;
+            this.fields = info.fields;
+
             ko.track(this);
         }
 
@@ -19,6 +21,7 @@
         public isListForm: boolean;
         public ctxKey: string;
         public listTemplateType: number;
+        public fields: string[];
 
         public files: FileModel[] = [];
         private fileFlags: { [url: string]: number } = {};
@@ -114,6 +117,30 @@
             var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
             var file = this.appendFileToList(fullUrl, true);
 
+            var fieldMarkup = '';
+
+            if (this.isListForm) {
+
+                fieldMarkup += '      //     Fields: {\r\n';
+
+                for (var f = 0; f < this.fields.length; f++) {
+                    var field = this.fields[f];
+
+                    fieldMarkup +=
+
+                    '      //         "' + field + '": {\r\n' +
+                    '      //             View: function(ctx) { return ""; },\r\n' +
+                    '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                    '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                    '      //             NewForm: function(ctx) { return ""; }\r\n';
+
+                    (f === this.fields.length - 1) ? '      //         }\r\n' : '      //         },\r\n';
+
+                };
+                fieldMarkup += '      //     },\r\n';
+
+            }
+
             var wptype = this.isListForm ? "LFWP" : "XLV";
             this.root.setEditorText(file.url,
                 '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
@@ -135,14 +162,7 @@
                     '      //     Item: function(ctx) { return ""; },\r\n'
                     ) +
 
-                '      //     Fields: {\r\n' +
-                '      //         "<fieldInternalName>": {\r\n' +
-                '      //             View: function(ctx) { return ""; },\r\n' +
-                '      //             EditForm: function(ctx) { return ""; },\r\n' +
-                '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
-                '      //             NewForm: function(ctx) { return ""; },\r\n' +
-                '      //         }\r\n' +
-                '      //     },\r\n' +
+                fieldMarkup +
 
                 (this.isListForm ? '' :
                     '      //     Footer: function(ctx) { return ""; }\r\n'
