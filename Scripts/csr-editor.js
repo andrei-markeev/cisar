@@ -39,12 +39,12 @@ var CSREditor;
                     var resUrl = CSREditor.Utils.cutOffQueryString(resources[i].url.toLowerCase().replace(' ', '%20'));
                     if (resUrl == url || (url[0] == "/" && CSREditor.Utils.endsWith(resUrl, url))) {
                         resources[i].getContent(function (content, encoding) {
-                            callback(content || "");
+                            callback(content || "", false);
                         });
                         return;
                     }
                 }
-                callback("");
+                callback("", true);
             });
         };
         ChromeIntegration.setResourceContent = function (url, content, callback) {
@@ -419,8 +419,29 @@ var CSREditor;
                 if (url in _this.modifiedFilesContent)
                     _this.setEditorText(url, _this.modifiedFilesContent[url]);
                 else {
-                    CSREditor.ChromeIntegration.getResourceContent(url, function (text) {
-                        _this.setEditorText(url, text);
+                    CSREditor.ChromeIntegration.getResourceContent(url, function (text, isError) {
+                        if (!isError)
+                            _this.setEditorText(url, text);
+                        else
+                            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_getFileContent(url), function (result, errorInfo) {
+                                if (errorInfo)
+                                    console.log(errorInfo);
+                                else {
+                                    var handle = setInterval(function () {
+                                        CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result2, errorInfo) {
+                                            if (errorInfo)
+                                                console.log(errorInfo);
+                                            else if (result2 != "wait") {
+                                                clearInterval(handle);
+                                                if (result2 == "error")
+                                                    alert("There was an error when getting file " + url + ". Please check console for details.");
+                                                else
+                                                    _this.setEditorText(url, result2);
+                                            }
+                                        });
+                                    }, 400);
+                                }
+                            });
                     });
                 }
             }, this.setEditorText.bind(this));
@@ -918,6 +939,37 @@ var CSREditor;
                     console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
                 });
             });
+        };
+        SPActions.getCode_getFileContent = function (url) {
+            return "(" + SPActions.getFileContent + ")('" + url + "');";
+        };
+        SPActions.getFileContent = function (url) {
+            delete window["g_Cisar_FileContents"];
+            var r = new Sys.Net.WebRequest();
+            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url.replace(_spPageContextInfo.siteServerRelativeUrl, ''));
+            r.set_httpVerb("GET");
+            r.add_completed(function (executor, args) {
+                if (executor.get_responseAvailable()) {
+                    window["g_Cisar_FileContents"] = executor.get_responseData();
+                }
+                else {
+                    if (executor.get_timedOut() || executor.get_aborted())
+                        window["g_Cisar_FileContents"] = "error";
+                }
+            });
+            r.invoke();
+        };
+        SPActions.getCode_checkFileContentRetrieved = function () {
+            return "(" + SPActions.checkFileContentRetrieved + ")();";
+        };
+        SPActions.checkFileContentRetrieved = function () {
+            if (window["g_Cisar_FileContents"]) {
+                var result = window["g_Cisar_FileContents"];
+                delete window["g_Cisar_FileContents"];
+                return result;
+            }
+            else
+                return "wait";
         };
         return SPActions;
     })();

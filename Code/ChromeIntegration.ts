@@ -39,19 +39,19 @@
                 callback({});
         }
 
-        public static getResourceContent(url: string, callback) {
+        public static getResourceContent(url: string, callback: { (content: string, isError: boolean): void }) {
             chrome.devtools.inspectedWindow.getResources(function (resources) {
                 url = Utils.cutOffQueryString(url.toLowerCase().replace(' ', '%20'));
                 for (var i = 0; i < resources.length; i++) {
                     var resUrl = Utils.cutOffQueryString(resources[i].url.toLowerCase().replace(' ', '%20'));
                     if (resUrl == url || (url[0] == "/" && Utils.endsWith(resUrl, url))) {
                         resources[i].getContent(function (content, encoding) {
-                            callback(content || "");
+                            callback(content || "", false);
                         });
                         return;
                     }
                 }
-                callback("");
+                callback("", true);
             });
         }
 

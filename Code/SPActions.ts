@@ -480,6 +480,42 @@ module CSREditor {
             });
 
         }
+
+
+        public static getCode_getFileContent(url: string) {
+            return "(" + SPActions.getFileContent + ")('" + url + "');";
+        }
+        private static getFileContent(url: string) {
+            delete window["g_Cisar_FileContents"];
+            var r = new Sys.Net.WebRequest();
+            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url.replace(_spPageContextInfo.siteServerRelativeUrl, ''));
+            r.set_httpVerb("GET");
+            r.add_completed((executor, args) => {
+                if (executor.get_responseAvailable()) {
+                    window["g_Cisar_FileContents"] = executor.get_responseData();
+                }
+                else {
+                    if (executor.get_timedOut() || executor.get_aborted())
+                        window["g_Cisar_FileContents"] = "error";
+                }
+            });
+            r.invoke();
+        }
+
+
+        public static getCode_checkFileContentRetrieved() {
+            return "(" + SPActions.checkFileContentRetrieved + ")();";
+        }
+        private static checkFileContentRetrieved() {
+            if (window["g_Cisar_FileContents"]) {
+                var result = window["g_Cisar_FileContents"];
+                delete window["g_Cisar_FileContents"];
+                return result;
+            }
+            else
+                return "wait";
+        }
+
     }
 
 }
