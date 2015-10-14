@@ -15,6 +15,7 @@
     <IISExpressAnonymousAuthentication />
     <IISExpressWindowsAuthentication />
     <IISExpressUseClassicPipelineMode />
+    <UseGlobalApplicationHostFile />
   </PropertyGroup>
   <ItemGroup>
     <Content Include="AppIcon.png" />
@@ -26,9 +27,11 @@
     <Content Include="Content\loader.gif" />
     <Content Include="Content\main.css" />
     <Content Include="devtools.html" />
+    <Content Include="gulpfile.js" />
     <Content Include="index.html" />
     <TypeScriptCompile Include="Code\ChromeIntegration.ts" />
     <TypeScriptCompile Include="Code\Panel.ts" />
+    <None Include="package.json" />
     <Content Include="Scripts\app.js" />
     <Content Include="Scripts\base64v1_0.js" />
     <Content Include="Scripts\bootstrap.min.js" />
@@ -40,13 +43,13 @@
     <Content Include="Scripts\codemirror\mode\xml.js" />
     <Content Include="Scripts\codemirror\show-hint.js" />
     <Content Include="README.md" />
-    <None Include="Scripts\jquery-2.1.1.intellisense.js" />
     <Content Include="Scripts\createpanel.js" />
-    <Content Include="Scripts\jquery-2.1.1.js" />
-    <Content Include="Scripts\jquery-2.1.1.min.js" />
     <Content Include="manifest.json" />
-    <Content Include="Scripts\knockout-3.2.0.debug.js" />
-    <Content Include="Scripts\knockout-3.2.0.js" />
+    <None Include="Scripts\jquery-2.1.4.intellisense.js" />
+    <Content Include="Scripts\jquery-2.1.4.js" />
+    <Content Include="Scripts\jquery-2.1.4.min.js" />
+    <Content Include="Scripts\knockout-3.3.0.debug.js" />
+    <Content Include="Scripts\knockout-3.3.0.js" />
     <Content Include="Scripts\knockout-es5.min.js" />
     <Content Include="Scripts\typescriptServices.js" />
     <Content Include="Scripts\typings\libs.d.ts" />
@@ -56,22 +59,29 @@
     <TypeScriptCompile Include="Code\FileModel.ts" />
     <TypeScriptCompile Include="Code\WebPartModel.ts" />
     <TypeScriptCompile Include="Scripts\typings\bootstrap\bootstrap.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\camljs\camljs.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\chrome\chrome-app.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\chrome\chrome-cast.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\chrome\chrome.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\codemirror\codemirror-matchbrackets.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\codemirror\codemirror-showhint.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\codemirror\codemirror.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\codemirror\searchcursor.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\es6-promise\es6-promise.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\filesystem\filesystem.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\filewriter\filewriter.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\jquery\jquery.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\knockout.es5\knockout.es5.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\knockout\knockout.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\microsoft-ajax\microsoft.ajax.d.ts" />
+    <TypeScriptCompile Include="Scripts\typings\sharepoint\SharePoint.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\typescript-services\typescriptServices.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\webrtc\MediaStream.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\webrtc\RTCPeerConnection.d.ts" />
   </ItemGroup>
   <ItemGroup>
-    <TypeScriptCompile Include="Scripts\typings\codemirror\codemirror.d.ts" />
-    <TypeScriptCompile Include="Scripts\typings\sharepoint\SharePoint.d.ts" />
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="packages.config" />
-    <Content Include="Scripts\jquery-2.1.1.min.map" />
+    <Content Include="Scripts\jquery-2.1.4.min.map" />
     <None Include="web.Debug.config">
       <DependentUpon>web.config</DependentUpon>
     </None>

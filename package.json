@@ -1,0 +1,11 @@
+{
+    "preferGlobal": true,
+    "analyze": false,
+    "devDependencies": {
+        "gulp": "^3.9.0"
+    },
+    "license": "MIT",
+    "engines": {
+        "node": ">=0.6"
+    }
+}

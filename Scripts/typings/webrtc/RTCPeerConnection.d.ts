@@ -71,8 +71,8 @@ interface RTCMediaConstraints {
 }
 
 interface RTCMediaOfferConstraints {
-  OfferToReceiveAudio: boolean;
-  OfferToReceiveVideo: boolean;
+  offerToReceiveAudio: boolean;
+  offerToReceiveVideo: boolean;
 }
 
 interface RTCSessionDescriptionInit {
@@ -261,7 +261,9 @@ interface RTCPeerConnection {
   signalingState: string; // RTCSignalingState; see TODO(1)
   updateIce(configuration?: RTCConfiguration,
             constraints?: RTCMediaConstraints): void;
-  addIceCandidate(candidate: RTCIceCandidate): void;
+  addIceCandidate(candidate:RTCIceCandidate,
+                  successCallback:() => void,
+                  failureCallback:RTCPeerConnectionErrorCallback): void;
   iceGatheringState: string;  // RTCIceGatheringState; see TODO(1)
   iceConnectionState: string;  // RTCIceConnectionState; see TODO(1)
   getLocalStreams(): MediaStream[];
@@ -278,7 +280,7 @@ interface RTCPeerConnection {
   onaddstream: (event: RTCMediaStreamEvent) => void;
   onremovestream: (event: RTCMediaStreamEvent) => void;
   onstatechange: (event: Event) => void;
-  onicechange: (event: Event) => void;
+  oniceconnectionstatechange: (event: Event) => void;
   onicecandidate: (event: RTCIceCandidateEvent) => void;
   onidentityresult: (event: Event) => void;
   onsignalingstatechange: (event: Event) => void;
@@ -358,5 +360,4 @@ interface Window{
   RTCIceCandidate: RTCIceCandidate;
   webkitRTCIceCandidate: webkitRTCIceCandidate;
   mozRTCIceCandidate: mozRTCIceCandidate;
-  URL: URL;
 }
