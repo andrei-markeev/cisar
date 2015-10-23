@@ -1385,10 +1385,10 @@ declare module SPClientTemplates {
         /** Template overrides */
         Templates?: TemplateOverrides;
 
-        /** �allbacks called before rendering starts. Can be function (ctx: RenderContext) => void or array of functions.*/
+        /** Callbacks called before rendering starts. Can be function (ctx: RenderContext) => void or array of functions.*/
         OnPreRender?: RenderCallback | RenderCallback[];
 
-        /** �allbacks called after rendered html inserted into DOM. Can be function (ctx: RenderContext) => void or array of functions.*/
+        /** Callbacks called after rendered html inserted into DOM. Can be function (ctx: RenderContext) => void or array of functions.*/
         OnPostRender?: RenderCallback | RenderCallback[];
 
         /** View style (SPView.StyleID) for which the templates should be applied. 

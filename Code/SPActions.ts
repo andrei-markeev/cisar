@@ -487,8 +487,11 @@ module CSREditor {
         }
         private static getFileContent(url: string) {
             delete window["g_Cisar_FileContents"];
+            url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
+            if (url[0] != '/')
+                url = '/' + url;
             var r = new Sys.Net.WebRequest();
-            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url.replace(_spPageContextInfo.siteServerRelativeUrl, ''));
+            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url);
             r.set_httpVerb("GET");
             r.add_completed((executor, args) => {
                 if (executor.get_responseAvailable()) {
