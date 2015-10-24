@@ -28,6 +28,5 @@ Known problems and important notes
 ----------------------------------
 Cisar is rather young. Below listed known bugs, inconveniences and notes. I'm working on improvements, but for now it is how it is:
 
-  1. If there're errors when saving files, they're logged in the "Console" tab in Developer Tools, but not shown anywhere else.
-  2. It is usually a very good idea to disable caching ("Network" tab -> Disable cache checkbox).
-  3. Display Templates and also CSWP customizations aren't supported yet.
+  1. It is usually a very good idea to disable caching ("Network" tab -> Disable cache checkbox).
+  2. Display Templates and also CSWP customizations aren't supported yet.
