@@ -391,11 +391,26 @@ module CSREditor {
 
                 context.executeQueryAsync(function () {
                     console.log('Cisar: file saved successfully.');
+                    window["g_Cisar_fileSavingResult"] = "saved";
                 },
                 function (sender, args) {
                     console.log('Cisar fatal error when saving file ' + fileName + ' to path "' + path + '": ' + args.get_message());
+                    window["g_Cisar_fileSavingResult"] = "error";
                 });
             });
+        }
+
+        public static getCode_checkFileSaved() {
+            return "(" + SPActions.checkFileSaved + ")();";
+        }
+        private static checkFileSaved() {
+            if (window["g_Cisar_fileSavingResult"]) {
+                var result = window["g_Cisar_fileSavingResult"];
+                delete window["g_Cisar_fileSavingResult"];
+                return result;
+            }
+            else
+                return "wait";
         }
 
         public static getCode_publishFileToSharePoint(url: string) {

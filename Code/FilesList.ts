@@ -142,7 +142,17 @@ module CSREditor {
                     for (var fileUrl in this.savingQueue) {
                         this.savingQueue[fileUrl].cooldown--;
                         if (this.savingQueue[fileUrl].cooldown <= 0) {
-                            CSREditor.ChromeIntegration.eval(SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(this.savingQueue[fileUrl].content)));
+                            CSREditor.ChromeIntegration.evalAndWaitForResult(
+                                SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(this.savingQueue[fileUrl].content)),
+                                SPActions.getCode_checkFileSaved(),
+                                (result, errorInfo) => {
+                                    if (errorInfo || result == "error") {
+                                        alert("Error occured when saving file " + fileUrl + ". Please check console for details.");
+                                        if (errorInfo)
+                                            console.log(errorInfo);
+                                    }
+                                }
+                            );
                             delete this.savingQueue[fileUrl];
                         }
                     }

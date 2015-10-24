@@ -240,7 +240,13 @@ var CSREditor;
                     for (var fileUrl in _this.savingQueue) {
                         _this.savingQueue[fileUrl].cooldown--;
                         if (_this.savingQueue[fileUrl].cooldown <= 0) {
-                            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(_this.savingQueue[fileUrl].content)));
+                            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(_this.savingQueue[fileUrl].content)), CSREditor.SPActions.getCode_checkFileSaved(), function (result, errorInfo) {
+                                if (errorInfo || result == "error") {
+                                    alert("Error occured when saving file " + fileUrl + ". Please check console for details.");
+                                    if (errorInfo)
+                                        console.log(errorInfo);
+                                }
+                            });
                             delete _this.savingQueue[fileUrl];
                         }
                     }
@@ -855,10 +861,24 @@ var CSREditor;
                 file.checkIn("Checked in by Cisar", SP.CheckinType.minorCheckIn);
                 context.executeQueryAsync(function () {
                     console.log('Cisar: file saved successfully.');
+                    window["g_Cisar_fileSavingResult"] = "saved";
                 }, function (sender, args) {
                     console.log('Cisar fatal error when saving file ' + fileName + ' to path "' + path + '": ' + args.get_message());
+                    window["g_Cisar_fileSavingResult"] = "error";
                 });
             });
+        };
+        SPActions.getCode_checkFileSaved = function () {
+            return "(" + SPActions.checkFileSaved + ")();";
+        };
+        SPActions.checkFileSaved = function () {
+            if (window["g_Cisar_fileSavingResult"]) {
+                var result = window["g_Cisar_fileSavingResult"];
+                delete window["g_Cisar_fileSavingResult"];
+                return result;
+            }
+            else
+                return "wait";
         };
         SPActions.getCode_publishFileToSharePoint = function (url) {
             return "(" + SPActions.publishFileToSharePoint + ")('" + url + "');";
@@ -1167,17 +1187,19 @@ var CSREditor;
                     if (errorInfo)
                         console.log(errorInfo);
                 }
-                else if (result == "created")
-                    _this.fileWasCreated(_this.newFileName);
+                else if (result == "created") {
+                    var fullUrl = (_this.root.siteUrl + _this.root.filesPath.replace(' ', '%20') + _this.newFileName).toLowerCase();
+                    var file = _this.appendFileToList(fullUrl, true);
+                    var templateText = _this.generateTemplate();
+                    _this.root.setEditorText(file.url, templateText, true);
+                }
                 else if (result == "existing") {
                     var fullUrl = (_this.root.siteUrl + _this.root.filesPath.replace(' ', '%20') + _this.newFileName).toLowerCase();
                     _this.appendFileToList(fullUrl, false);
                 }
             });
         };
-        WebPartModel.prototype.fileWasCreated = function (newFileName) {
-            var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
-            var file = this.appendFileToList(fullUrl, true);
+        WebPartModel.prototype.generateTemplate = function () {
             if (!this.fields || this.fields.length == 0)
                 this.fields = ['<field internal name>'];
             var fieldMarkup = '      //     Fields: {\r\n';
@@ -1200,7 +1222,7 @@ var CSREditor;
             ;
             fieldMarkup += '      //     },\r\n';
             var wptype = this.isListForm ? "LFWP" : "XLV";
-            this.root.setEditorText(file.url, '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
+            return '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
                 '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
                 'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
                 '  function getBaseHtml(ctx) {\r\n' +
@@ -1225,9 +1247,9 @@ var CSREditor;
                 '      ListTemplateType: ' + this.listTemplateType + '\r\n\r\n' +
                 '    });\r\n' +
                 '  }\r\n\r\n' +
-                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + newFileName + '"), init);\r\n' +
+                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + this.newFileName + '"), init);\r\n' +
                 '  init();\r\n\r\n' +
-                '});\r\n', true);
+                '});\r\n';
         };
         return WebPartModel;
     })();

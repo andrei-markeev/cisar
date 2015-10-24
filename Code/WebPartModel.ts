@@ -85,8 +85,13 @@
                         if (errorInfo)
                             console.log(errorInfo);
                     }
-                    else if (result == "created")
-                        this.fileWasCreated(this.newFileName);
+                    else if (result == "created") {
+                        var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + this.newFileName).toLowerCase();
+                        var file = this.appendFileToList(fullUrl, true);
+                        var templateText = this.generateTemplate();
+
+                        this.root.setEditorText(file.url, templateText, true);
+                    }
                     else if (result == "existing") {
                         var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + this.newFileName).toLowerCase();
                         this.appendFileToList(fullUrl, false);
@@ -98,10 +103,7 @@
 
         }
 
-        private fileWasCreated(newFileName) {
-
-            var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
-            var file = this.appendFileToList(fullUrl, true);
+        private generateTemplate() {
 
             if (!this.fields || this.fields.length == 0)
                 this.fields = ['<field internal name>'];
@@ -122,55 +124,50 @@
                 '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
                 '      //             NewForm: function(ctx) { return ""; }\r\n' +
                 ((f === this.fields.length - 1) ?
-                '      //         }\r\n'
-                :
-                '      //         },\r\n');
+                    '      //         }\r\n'
+                    :
+                    '      //         },\r\n');
 
             };
             fieldMarkup += '      //     },\r\n';
 
             var wptype = this.isListForm ? "LFWP" : "XLV";
-            this.root.setEditorText(file.url,
-                '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
-                '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
-                'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
-                '  function getBaseHtml(ctx) {\r\n' +
-                '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
-                '  }\r\n\r\n' +
-                '  function init() {\r\n\r\n' +
-                '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
-                '      // OnPreRender: function(ctx) { },\r\n\r\n' +
-                '      Templates: {\r\n\r\n' +
 
-                (this.isListForm ? '' :
-                    '      //     View: function(ctx) { return ""; },\r\n' +
-                    '      //     Header: function(ctx) { return ""; },\r\n' +
-                    '      //     Body: function(ctx) { return ""; },\r\n' +
-                    '      //     Group: function(ctx) { return ""; },\r\n' +
-                    '      //     Item: function(ctx) { return ""; },\r\n'
-                    ) +
+            return '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
+            '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
+            'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
+            '  function getBaseHtml(ctx) {\r\n' +
+            '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
+            '  }\r\n\r\n' +
+            '  function init() {\r\n\r\n' +
+            '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
+            '      // OnPreRender: function(ctx) { },\r\n\r\n' +
+            '      Templates: {\r\n\r\n' +
 
-                fieldMarkup +
+            (this.isListForm ? '' :
+                '      //     View: function(ctx) { return ""; },\r\n' +
+                '      //     Header: function(ctx) { return ""; },\r\n' +
+                '      //     Body: function(ctx) { return ""; },\r\n' +
+                '      //     Group: function(ctx) { return ""; },\r\n' +
+                '      //     Item: function(ctx) { return ""; },\r\n'
+            ) +
 
-                (this.isListForm ? '' :
-                    '      //     Footer: function(ctx) { return ""; }\r\n'
-                    ) +
+            fieldMarkup +
 
-                '\r\n' +
-                '      },\r\n\r\n' +
-                '      // OnPostRender: function(ctx) { },\r\n\r\n' +
-                '      ListTemplateType: ' + this.listTemplateType + '\r\n\r\n' +
-                '    });\r\n' +
-                '  }\r\n\r\n' +
-                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + newFileName + '"), init);\r\n' +
-                '  init();\r\n\r\n' +
-                '});\r\n',
-                true
-                );
+            (this.isListForm ? '' :
+                '      //     Footer: function(ctx) { return ""; }\r\n'
+            ) +
 
+            '\r\n' +
+            '      },\r\n\r\n' +
+            '      // OnPostRender: function(ctx) { },\r\n\r\n' +
+            '      ListTemplateType: ' + this.listTemplateType + '\r\n\r\n' +
+            '    });\r\n' +
+            '  }\r\n\r\n' +
+            '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + this.newFileName + '"), init);\r\n' +
+            '  init();\r\n\r\n' +
+            '});\r\n';
         }
-
-
 
     }
 }
