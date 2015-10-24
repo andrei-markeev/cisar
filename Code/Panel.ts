@@ -18,43 +18,9 @@
             this.editorCM = this.initEditor();
             this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
 
-            this.filesList = new CSREditor.FilesList((url: string) => {
-                if (url in this.modifiedFilesContent)
-                    this.setEditorText(url, this.modifiedFilesContent[url]);
-                else {
-                    ChromeIntegration.eval(SPActions.getCode_getFileContent(url), (result, errorInfo) => {
-                        if (errorInfo)
-                            console.log(errorInfo);
-                        else {
+            this.filesList = new CSREditor.FilesList(this.loadUrlToEditor.bind(this), this.setEditorText.bind(this));
 
-                            var handle = setInterval(() => {
-
-                                CSREditor.ChromeIntegration.eval(
-
-                                    SPActions.getCode_checkFileContentRetrieved(),
-
-                                    (result2, errorInfo) => {
-                                        if (errorInfo)
-                                            console.log(errorInfo);
-                                        else if (result2 != "wait") {
-                                            clearInterval(handle);
-                                            if (result2 == "error")
-                                                alert("There was an error when getting file " + url + ". Please check console for details.");
-                                            else
-                                                this.setEditorText(url, result2);
-                                        }
-
-                                    });
-
-                            }, 400);
-
-                        }
-
-                    });                            
-                }
-            }, this.setEditorText.bind(this));
-
-            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl",(result, errorInfo) => {
+            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
                     this.filesList.siteUrl = siteUrl;
@@ -64,7 +30,7 @@
                 }
             });
 
-            ChromeIntegration.eval("keys(window)",(result, errorInfo) => {
+            ChromeIntegration.eval("keys(window)", (result, errorInfo) => {
                 if (!errorInfo) {
                     var windowTS = '';
                     var completions = this.typeScriptService.getCompletions(0);
@@ -99,7 +65,21 @@
             return editor;
         }
 
-        private setEditorText(url:string, text: string, newlyCreated: boolean = false) {
+        private loadUrlToEditor(url: string) {
+            if (url in this.modifiedFilesContent)
+                this.setEditorText(url, this.modifiedFilesContent[url]);
+            else
+                ChromeIntegration.evalAndWaitForResult(SPActions.getCode_getFileContent(url), SPActions.getCode_checkFileContentRetrieved(), (result, errorInfo) => {
+                    if (errorInfo)
+                        console.log(errorInfo);
+                    else if (result == "error")
+                        alert("There was an error when getting file " + url + ". Please check console for details.");
+                    else
+                        this.setEditorText(url, result);
+                });
+        }
+
+        private setEditorText(url: string, text: string, newlyCreated: boolean = false) {
             this.fileName = url;
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);

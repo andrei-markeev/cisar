@@ -40,39 +40,34 @@ module CSREditor {
                 });
                 ko.applyBindings(this);
 
-                var handle = setInterval(() => {
+                CSREditor.ChromeIntegration.waitForResult(SPActions.getCode_checkJSLinkInfoRetrieved(), (jsLinkInfo, errorInfo) => {
 
-                    CSREditor.ChromeIntegration.eval(
+                    this.loading = false;
 
-                        SPActions.getCode_checkJSLinkInfoRetrieved(),
+                    if (errorInfo || jsLinkInfo == "error")
+                    {
+                        if (errorInfo) console.log(errorInfo);
+                        alert("There was an error when getting list of files. Please check console for details.");
+                        return;
+                    }
 
-                        (result2, errorInfo) => {
-                            if (errorInfo)
-                                console.log(errorInfo);
-                            else if (result2 != "wait") {
-                                clearInterval(handle);
-                                this.loading = false;
-                                if (result2 == "error")
-                                    alert("There was an error when getting list of files. Please check console for details.");
-                                else {
-                                    for (var wpqId in result2) {
-                                        for (var f = 0; f < result2[wpqId].length; f++) {
-                                            var addedFile = wpDict[wpqId].appendFileToList(result2[wpqId][f]);
+                    for (var wpqId in jsLinkInfo) {
 
-                                            if (addedFile != null) {
-                                                for (var o = this.otherFiles.length - 1; o >= 0; o--) {
-                                                    if (this.otherFiles[o].url == addedFile.url)
-                                                        this.otherFiles.remove(this.otherFiles[o]);
-                                                }
-                                            }
-                                        }
-                                    }
+                        jsLinkInfo[wpqId].forEach(url => {
+
+                            var addedFile = wpDict[wpqId].appendFileToList(url);
+
+                            if (addedFile != null) {
+                                for (var o = this.otherFiles.length - 1; o >= 0; o--) {
+                                    if (this.otherFiles[o].url == addedFile.url)
+                                        this.otherFiles.remove(this.otherFiles[o]);
                                 }
                             }
 
                         });
+                    }
 
-                }, 400);
+                });
             });
 
 

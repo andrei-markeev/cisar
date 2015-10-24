@@ -76,6 +76,33 @@
             }
         }
 
+        public static waitForResult(getResultsCode: string, callback: (result: any, errorInfo: any) => void)
+        {
+            var handle = setInterval(() => {
+
+                CSREditor.ChromeIntegration.eval(
+                    getResultsCode,
+                    (result, errorInfo) => {
+                        if (result!= "wait") {
+                            clearInterval(handle);
+                            callback(result, errorInfo);
+                        }
+                    });
+
+            }, 400);
+        }
+
+        public static evalAndWaitForResult(code: string, getResultsCode: string, callback: (result: any, errorInfo: any) => void) {
+
+            CSREditor.ChromeIntegration.eval(code, (result, errorInfo) => {
+                if (errorInfo)
+                    callback(result, errorInfo);
+                else
+                    CSREditor.ChromeIntegration.waitForResult(getResultsCode, callback);
+            });
+
+        }
+
         public static executeInContentScriptContext(code) {
 
             if (!window["chrome"] || !chrome.tabs)

@@ -454,6 +454,8 @@ module CSREditor {
                 context.executeQueryAsync(function () {
                     var oldJsLinkString = properties.get_item("JSLink");
                     url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
+                    if (url[0] != '/')
+                        url = '/' + url;
                     var jsLinkString = properties.get_item("JSLink")
                         .replace("|~sitecollection" + url, "")
                         .replace("~sitecollection" + url + "|", "")

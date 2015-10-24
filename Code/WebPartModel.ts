@@ -73,42 +73,28 @@
             if (this.newFileName.indexOf('.js') == -1)
                 this.newFileName += '.js';
 
-            CSREditor.ChromeIntegration.eval(
+            CSREditor.ChromeIntegration.evalAndWaitForResult(
 
-                SPActions.getCode_createFileInSharePoint(this.root.filesPath.replace(' ', '%20').toLowerCase(), this.newFileName, this.id, this.ctxKey),
+                SPActions.getCode_createFileInSharePoint(this.root.filesPath.toLowerCase(), this.newFileName, this.id, this.ctxKey),
+                SPActions.getCode_checkFileCreated(),
 
                 (result, errorInfo) => {
-                    if (!errorInfo) {
-
-                        var handle = setInterval(() => {
-
-                            CSREditor.ChromeIntegration.eval(
-
-                                SPActions.getCode_checkFileCreated(),
-
-                                (result2, errorInfo) => {
-                                    if (errorInfo)
-                                        console.log(errorInfo);
-                                    else if (result2 != "wait") {
-                                        this.loading = false;
-                                        clearInterval(handle);
-                                        if (result2 == "created")
-                                            this.fileWasCreated(this.newFileName);
-                                        else if (result2 == "existing")
-                                        {
-                                            var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + this.newFileName).toLowerCase();
-                                            this.appendFileToList(fullUrl, false);
-                                        }
-                                        else if (result2 == "error")
-                                            alert("There was an error when creating the file. Please check console for details.");
-                                    }
-
-                                });
-
-                        }, 1000);
-
+                    this.loading = false;
+                    if (errorInfo || result == "error") {
+                        alert("There was an error when creating the file. Please check console for details.");
+                        if (errorInfo)
+                            console.log(errorInfo);
                     }
-                });
+                    else if (result == "created")
+                        this.fileWasCreated(this.newFileName);
+                    else if (result == "existing") {
+                        var fullUrl = (this.root.siteUrl + this.root.filesPath.replace(' ', '%20') + this.newFileName).toLowerCase();
+                        this.appendFileToList(fullUrl, false);
+                    }
+
+                }
+
+            );
 
         }
 

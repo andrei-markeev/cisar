@@ -67,6 +67,24 @@ var CSREditor;
                 });
             }
         };
+        ChromeIntegration.waitForResult = function (getResultsCode, callback) {
+            var handle = setInterval(function () {
+                CSREditor.ChromeIntegration.eval(getResultsCode, function (result, errorInfo) {
+                    if (result != "wait") {
+                        clearInterval(handle);
+                        callback(result, errorInfo);
+                    }
+                });
+            }, 400);
+        };
+        ChromeIntegration.evalAndWaitForResult = function (code, getResultsCode, callback) {
+            CSREditor.ChromeIntegration.eval(code, function (result, errorInfo) {
+                if (errorInfo)
+                    callback(result, errorInfo);
+                else
+                    CSREditor.ChromeIntegration.waitForResult(getResultsCode, callback);
+            });
+        };
         ChromeIntegration.executeInContentScriptContext = function (code) {
             if (!window["chrome"] || !chrome.tabs)
                 return false;
@@ -151,31 +169,26 @@ var CSREditor;
                     localStorage['filesPath'] = newValue;
                 });
                 ko.applyBindings(_this);
-                var handle = setInterval(function () {
-                    CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (result2, errorInfo) {
+                CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (jsLinkInfo, errorInfo) {
+                    _this.loading = false;
+                    if (errorInfo || jsLinkInfo == "error") {
                         if (errorInfo)
                             console.log(errorInfo);
-                        else if (result2 != "wait") {
-                            clearInterval(handle);
-                            _this.loading = false;
-                            if (result2 == "error")
-                                alert("There was an error when getting list of files. Please check console for details.");
-                            else {
-                                for (var wpqId in result2) {
-                                    for (var f = 0; f < result2[wpqId].length; f++) {
-                                        var addedFile = wpDict[wpqId].appendFileToList(result2[wpqId][f]);
-                                        if (addedFile != null) {
-                                            for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
-                                                if (_this.otherFiles[o].url == addedFile.url)
-                                                    _this.otherFiles.remove(_this.otherFiles[o]);
-                                            }
-                                        }
-                                    }
+                        alert("There was an error when getting list of files. Please check console for details.");
+                        return;
+                    }
+                    for (var wpqId in jsLinkInfo) {
+                        jsLinkInfo[wpqId].forEach(function (url) {
+                            var addedFile = wpDict[wpqId].appendFileToList(url);
+                            if (addedFile != null) {
+                                for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
+                                    if (_this.otherFiles[o].url == addedFile.url)
+                                        _this.otherFiles.remove(_this.otherFiles[o]);
                                 }
                             }
-                        }
-                    });
-                }, 400);
+                        });
+                    }
+                });
             });
             document.querySelector('.separator').onclick = function (ev) {
                 if (document.body.className.indexOf("fullscreen") > -1)
@@ -390,31 +403,7 @@ var CSREditor;
             this.typeScriptService = new CSREditor.TypeScriptService();
             this.editorCM = this.initEditor();
             this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
-            this.filesList = new CSREditor.FilesList(function (url) {
-                if (url in _this.modifiedFilesContent)
-                    _this.setEditorText(url, _this.modifiedFilesContent[url]);
-                else {
-                    CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_getFileContent(url), function (result, errorInfo) {
-                        if (errorInfo)
-                            console.log(errorInfo);
-                        else {
-                            var handle = setInterval(function () {
-                                CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result2, errorInfo) {
-                                    if (errorInfo)
-                                        console.log(errorInfo);
-                                    else if (result2 != "wait") {
-                                        clearInterval(handle);
-                                        if (result2 == "error")
-                                            alert("There was an error when getting file " + url + ". Please check console for details.");
-                                        else
-                                            _this.setEditorText(url, result2);
-                                    }
-                                });
-                            }, 400);
-                        }
-                    });
-                }
-            }, this.setEditorText.bind(this));
+            this.filesList = new CSREditor.FilesList(this.loadUrlToEditor.bind(this), this.setEditorText.bind(this));
             CSREditor.ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
@@ -454,6 +443,20 @@ var CSREditor;
             });
             editor.on("change", function (editor, changeList) { _this.processChanges(editor.getDoc(), changeList); });
             return editor;
+        };
+        Panel.prototype.loadUrlToEditor = function (url) {
+            var _this = this;
+            if (url in this.modifiedFilesContent)
+                this.setEditorText(url, this.modifiedFilesContent[url]);
+            else
+                CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_getFileContent(url), CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result, errorInfo) {
+                    if (errorInfo)
+                        console.log(errorInfo);
+                    else if (result == "error")
+                        alert("There was an error when getting file " + url + ". Please check console for details.");
+                    else
+                        _this.setEditorText(url, result);
+                });
         };
         Panel.prototype.setEditorText = function (url, text, newlyCreated) {
             var _this = this;
@@ -901,6 +904,8 @@ var CSREditor;
                 context.executeQueryAsync(function () {
                     var oldJsLinkString = properties.get_item("JSLink");
                     url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
+                    if (url[0] != '/')
+                        url = '/' + url;
                     var jsLinkString = properties.get_item("JSLink")
                         .replace("|~sitecollection" + url, "")
                         .replace("~sitecollection" + url + "|", "")
@@ -1155,26 +1160,18 @@ var CSREditor;
             this.loading = true;
             if (this.newFileName.indexOf('.js') == -1)
                 this.newFileName += '.js';
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_createFileInSharePoint(this.root.filesPath.replace(' ', '%20').toLowerCase(), this.newFileName, this.id, this.ctxKey), function (result, errorInfo) {
-                if (!errorInfo) {
-                    var handle = setInterval(function () {
-                        CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkFileCreated(), function (result2, errorInfo) {
-                            if (errorInfo)
-                                console.log(errorInfo);
-                            else if (result2 != "wait") {
-                                _this.loading = false;
-                                clearInterval(handle);
-                                if (result2 == "created")
-                                    _this.fileWasCreated(_this.newFileName);
-                                else if (result2 == "existing") {
-                                    var fullUrl = (_this.root.siteUrl + _this.root.filesPath.replace(' ', '%20') + _this.newFileName).toLowerCase();
-                                    _this.appendFileToList(fullUrl, false);
-                                }
-                                else if (result2 == "error")
-                                    alert("There was an error when creating the file. Please check console for details.");
-                            }
-                        });
-                    }, 1000);
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_createFileInSharePoint(this.root.filesPath.toLowerCase(), this.newFileName, this.id, this.ctxKey), CSREditor.SPActions.getCode_checkFileCreated(), function (result, errorInfo) {
+                _this.loading = false;
+                if (errorInfo || result == "error") {
+                    alert("There was an error when creating the file. Please check console for details.");
+                    if (errorInfo)
+                        console.log(errorInfo);
+                }
+                else if (result == "created")
+                    _this.fileWasCreated(_this.newFileName);
+                else if (result == "existing") {
+                    var fullUrl = (_this.root.siteUrl + _this.root.filesPath.replace(' ', '%20') + _this.newFileName).toLowerCase();
+                    _this.appendFileToList(fullUrl, false);
                 }
             });
         };
