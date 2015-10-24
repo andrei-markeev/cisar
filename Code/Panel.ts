@@ -163,9 +163,22 @@
             Panel.checkSyntaxTimeout = setTimeout(() => {
                 var errors = this.typeScriptService.getErrors();
                 for (var i = 0; i < errors.length; i++) {
-                    cm.markText(cm.posFromIndex(errors[i].start()), cm.posFromIndex(errors[i].start() + errors[i].length()), {
+                    var text = "";
+                    if (errors[i].messageText instanceof String)
+                        text = <string>errors[i].messageText;
+                    else {
+                        var chain = <ts.DiagnosticMessageChain>errors[i].messageText;
+                        var texts = [];
+                        while (chain.next) {
+                            texts.push(chain.messageText);
+                            chain = chain.next;
+                        }
+                        text = texts.join('\n  ');
+                    }
+
+                    cm.markText(cm.posFromIndex(errors[i].start), cm.posFromIndex(errors[i].start + errors[i].length), {
                         className: "syntax-error",
-                        title: errors[i].text()
+                        title: text
                     });
                 }
             }, 1500);

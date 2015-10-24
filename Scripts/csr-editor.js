@@ -255,6 +255,9 @@ var CSREditor;
         IntellisenseHelper.prototype.setFieldInternalNames = function (fieldNames) {
             this.fieldNames = fieldNames;
         };
+        IntellisenseHelper.prototype.joinParts = function (displayParts) {
+            return displayParts.map(function (p) { return p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>"; }).join("").replace('\n', '<br/>');
+        };
         IntellisenseHelper.prototype.showCodeMirrorHint = function (cm, list) {
             list.sort(function (l, r) {
                 if (l.displayText > r.displayText)
@@ -323,10 +326,9 @@ var CSREditor;
                     list.push({
                         text: completions.entries[i].name,
                         displayText: completions.entries[i].name,
-                        typeInfo: details.type,
+                        typeInfo: this.joinParts(details.displayParts),
                         kind: completions.entries[i].kind,
-                        docComment: details.docComment,
-                        className: "autocomplete-" + completions.entries[i].kind,
+                        docComment: this.joinParts(details.documentation),
                         livePreview: false
                     });
                 }
@@ -334,49 +336,27 @@ var CSREditor;
             this.showCodeMirrorHint(cm, list);
         };
         IntellisenseHelper.prototype.showFunctionTooltip = function (cm, changePosition) {
+            var _this = this;
             $('.tooltip').remove();
-            var signature = this.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
-            if (signature) {
+            var signatures = this.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
+            if (signatures && signatures.items && signatures.selectedItemIndex >= 0) {
+                var signature = signatures.items[signatures.selectedItemIndex];
+                var paramsString = signature.parameters
+                    .map(function (p) { return _this.joinParts(p.displayParts); })
+                    .join(this.joinParts(signature.separatorDisplayParts));
+                var signatureString = this.joinParts(signature.prefixDisplayParts) + paramsString + this.joinParts(signature.suffixDisplayParts);
                 this.tooltipLastPos = changePosition;
                 var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
                 var domElement = cm.getEditor().getWrapperElement();
                 $(domElement).data('bs.tooltip', false).tooltip({
                     html: true,
-                    title: '<div class="tooltip-typeInfo">' + signature.formal[0].signatureInfo + '</div>' + '<div class="tooltip-docComment">' + signature.formal[0].docComment.replace('\n', '<br/>') + '</div>',
+                    title: '<div class="tooltip-typeInfo">' + signatureString + '</div>' + '<div class="tooltip-docComment">' + this.joinParts(signature.documentation) + '</div>',
                     trigger: 'manual', container: 'body', placement: 'bottom'
                 });
                 $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
                     $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px");
                 });
                 $(domElement).tooltip('show');
-            }
-        };
-        IntellisenseHelper.prototype.showFieldInternalNamesDropDown = function (cm, changePosition) {
-            var position = cm.indexFromPos(changePosition) + 1;
-            var symbolInfo = this.typeScriptService.getSymbolInfo(position);
-            var typeMembers = symbolInfo.symbol.type.getMembers();
-            var found = true;
-            for (var i = 0; i < typeMembers.length; i++) {
-                if (typeMembers[i].name != "View"
-                    && typeMembers[i].name != "EditForm"
-                    && typeMembers[i].name != "DisplayForm"
-                    && typeMembers[i].name != "NewForm") {
-                    found = false;
-                    break;
-                }
-            }
-            if (found) {
-                var list = [];
-                for (var i = 0; i < this.fieldNames.length; i++) {
-                    // field internal names
-                    list.push({
-                        text: '"' + this.fieldNames[i] + '"',
-                        displayText: this.fieldNames[i],
-                        docComment: "",
-                        livePreview: true
-                    });
-                }
-                this.showCodeMirrorHint(cm, list);
             }
         };
         IntellisenseHelper.prototype.scriptChanged = function (cm, changeObj) {
@@ -389,13 +369,6 @@ var CSREditor;
             else if (changeObj.text.length == 1 && changeObj.text[0] == ')') {
                 $('.tooltip').remove();
             }
-            else if ((changeObj.from.ch > 0 && cm.getRange({ ch: changeObj.from.ch - 1, line: changeObj.from.line }, changeObj.from) == '"')
-                || changeObj.text.length == 1 && changeObj.text[0] == '"') {
-                this.showFieldInternalNamesDropDown(cm, changeObj.to);
-            }
-            //else if (changeObj.from.ch > 0 && /^\s[a-zA-Z][a-zA-Z0-9]$/.test(cm.getRange({ ch: changeObj.from.ch - 3, line: changeObj.from.line }, changeObj.from))) {
-            //    this.showAutoCompleteDropDown(cm, changeObj.to);
-            //}
         };
         return IntellisenseHelper;
     })();
@@ -535,9 +508,21 @@ var CSREditor;
             Panel.checkSyntaxTimeout = setTimeout(function () {
                 var errors = _this.typeScriptService.getErrors();
                 for (var i = 0; i < errors.length; i++) {
-                    cm.markText(cm.posFromIndex(errors[i].start()), cm.posFromIndex(errors[i].start() + errors[i].length()), {
+                    var text = "";
+                    if (errors[i].messageText instanceof String)
+                        text = errors[i].messageText;
+                    else {
+                        var chain = errors[i].messageText;
+                        var texts = [];
+                        while (chain.next) {
+                            texts.push(chain.messageText);
+                            chain = chain.next;
+                        }
+                        text = texts.join('\n  ');
+                    }
+                    cm.markText(cm.posFromIndex(errors[i].start), cm.posFromIndex(errors[i].start + errors[i].length), {
                         className: "syntax-error",
-                        title: errors[i].text()
+                        title: text
                     });
                 }
             }, 1500);
@@ -1001,55 +986,25 @@ var CSREditor;
             this.changes['live.ts'] = [];
         }
         TypeScriptServiceHost.prototype.log = function (message) { console.log("tsHost: " + message); };
-        TypeScriptServiceHost.prototype.information = function () { return true; };
-        TypeScriptServiceHost.prototype.debug = function () { return true; };
-        TypeScriptServiceHost.prototype.warning = function () { return true; };
-        TypeScriptServiceHost.prototype.error = function () { return true; };
-        TypeScriptServiceHost.prototype.fatal = function () { return true; };
-        TypeScriptServiceHost.prototype.getCompilationSettings = function () { return "{ \"noLib\": true }"; };
-        TypeScriptServiceHost.prototype.getScriptFileNames = function () { return "[\"libs.ts\", \"live.ts\", \"csr-editor.ts\"]"; };
-        TypeScriptServiceHost.prototype.getScriptVersion = function (fn) { return this.scriptVersion[fn]; };
-        TypeScriptServiceHost.prototype.getScriptIsOpen = function (fn) { return true; };
-        TypeScriptServiceHost.prototype.getLocalizedDiagnosticMessages = function () { return ""; };
-        TypeScriptServiceHost.prototype.getCancellationToken = function () { return null; };
-        TypeScriptServiceHost.prototype.getScriptByteOrderMark = function (fn) { return 0; };
-        TypeScriptServiceHost.prototype.resolveRelativePath = function () { return null; };
-        TypeScriptServiceHost.prototype.fileExists = function (fn) { return null; };
-        TypeScriptServiceHost.prototype.directoryExists = function (dir) { return null; };
-        TypeScriptServiceHost.prototype.getParentDirectory = function (dir) { return null; };
-        TypeScriptServiceHost.prototype.getDiagnosticsObject = function () { return null; };
+        TypeScriptServiceHost.prototype.getCompilationSettings = function () { return {}; };
+        TypeScriptServiceHost.prototype.getScriptFileNames = function () { return ["libs.ts", "live.ts", "csr-editor.ts"]; };
+        TypeScriptServiceHost.prototype.getScriptVersion = function (fn) { return (this.scriptVersion[fn] || 0).toString(); };
         TypeScriptServiceHost.prototype.getScriptSnapshot = function (fn) {
             var snapshot, snapshotChanges, snapshotVersion;
-            if (fn == 'libs.ts') {
-                snapshot = TypeScript.ScriptSnapshot.fromString(this.libText);
-                snapshotChanges = [];
-                snapshotVersion = 0;
-            }
-            else {
-                snapshot = TypeScript.ScriptSnapshot.fromString(this.text[fn]);
-                snapshotChanges = this.changes[fn];
-                snapshotVersion = this.scriptVersion[fn];
-            }
-            return {
-                getText: function (s, e) { return snapshot.getText(s, e); },
-                getLength: function () { return snapshot.getLength(); },
-                getLineStartPositions: function () { return "[" + snapshot.getLineStartPositions().toString() + "]"; },
-                getTextChangeRangeSinceVersion: function (version) {
-                    if (snapshotVersion == 0 || snapshotChanges.length == 0)
-                        return null;
-                    var result = TypeScript.TextChangeRange.collapseChangesAcrossMultipleVersions(snapshotChanges.slice(version - snapshotVersion));
-                    return "{ \"span\": { \"start\": " + result.span().start() + ", \"length\": " + result.span().length() + " }, \"newLength\": " + result.newLength() + " }";
-                }
-            };
+            if (fn == 'libs.ts')
+                return ts.ScriptSnapshot.fromString(this.libText);
+            else
+                return ts.ScriptSnapshot.fromString(this.text[fn]);
         };
-        TypeScriptServiceHost.prototype.getLibLength = function () { return this.libTextLength; };
+        TypeScriptServiceHost.prototype.getCurrentDirectory = function () { return ""; };
+        TypeScriptServiceHost.prototype.getDefaultLibFileName = function () { return "libs.ts"; };
         TypeScriptServiceHost.prototype.scriptChanged = function (fn, newText, startPos, changeLength) {
             if (startPos === void 0) { startPos = 0; }
             if (changeLength === void 0) { changeLength = 0; }
             this.scriptVersion[fn]++;
             this.text[fn] = newText;
             if (startPos > 0 || changeLength > 0)
-                this.changes[fn].push(new TypeScript.TextChangeRange(new TypeScript.TextSpan(startPos, changeLength), newText.length));
+                this.changes[fn].push(ts.createTextChangeRange(ts.createTextSpan(startPos, changeLength), newText.length));
         };
         return TypeScriptServiceHost;
     })();
@@ -1062,8 +1017,7 @@ var CSREditor;
                 if (client.readyState != 4)
                     return;
                 self.tsHost = new TypeScriptServiceHost(client.responseText);
-                var tsFactory = new TypeScript.Services.TypeScriptServicesFactory();
-                self.tsServiceShim = tsFactory.createLanguageServiceShim(self.tsHost);
+                self.tsService = ts.createLanguageService(self.tsHost, ts.createDocumentRegistry([]));
             };
             client.send();
         }
@@ -1074,20 +1028,20 @@ var CSREditor;
             this.tsHost.scriptChanged('live.ts', newText);
         };
         TypeScriptService.prototype.getSymbolInfo = function (position) {
-            return this.tsServiceShim.languageService["getSymbolInfoAtPosition"]('csr-editor.ts', position);
+            return this.tsService.getEncodedSemanticClassifications('csr-editor.ts', position);
         };
         TypeScriptService.prototype.getCompletions = function (position) {
-            return this.tsServiceShim.languageService.getCompletionsAtPosition('csr-editor.ts', position, true);
+            return this.tsService.getCompletionsAtPosition('csr-editor.ts', position);
         };
         TypeScriptService.prototype.getCompletionDetails = function (position, name) {
-            return this.tsServiceShim.languageService.getCompletionEntryDetails('csr-editor.ts', position, name);
+            return this.tsService.getCompletionEntryDetails('csr-editor.ts', position, name);
         };
         TypeScriptService.prototype.getSignature = function (position) {
-            return this.tsServiceShim.languageService.getSignatureAtPosition('csr-editor.ts', position);
+            return this.tsService.getSignatureHelpItems('csr-editor.ts', position);
         };
         TypeScriptService.prototype.getErrors = function () {
-            var syntastic = this.tsServiceShim.languageService.getSyntacticDiagnostics('csr-editor.ts');
-            var semantic = this.tsServiceShim.languageService.getSemanticDiagnostics('csr-editor.ts');
+            var syntastic = this.tsService.getSyntacticDiagnostics('csr-editor.ts');
+            var semantic = this.tsService.getSemanticDiagnostics('csr-editor.ts');
             return syntastic.concat(semantic);
         };
         return TypeScriptService;

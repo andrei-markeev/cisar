@@ -172,6 +172,14 @@
 .tooltip-arrow {
     visibility: hidden;
 }
+.tooltip-inner .keyword
+{
+    color: blue;
+}
+.tooltip-inner .localName, .tooltip-inner .interfaceName
+{
+    color: darkcyan;
+}
 .tooltip-docComment {
     color: #555;
 }

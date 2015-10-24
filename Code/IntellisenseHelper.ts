@@ -20,6 +20,10 @@
             this.fieldNames = fieldNames;
         }
 
+        private joinParts(displayParts: ts.SymbolDisplayPart[]) {
+            return displayParts.map(p => p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>").join("").replace('\n', '<br/>');
+        }
+
         private showCodeMirrorHint(cm: CodeMirror.Doc, list) {
             list.sort(function (l, r) {
                 if (l.displayText > r.displayText) return 1;
@@ -97,10 +101,9 @@
                     list.push({
                         text: completions.entries[i].name,
                         displayText: completions.entries[i].name,
-                        typeInfo: details.type,
+                        typeInfo: this.joinParts(details.displayParts),
                         kind: completions.entries[i].kind,
-                        docComment: details.docComment,
-                        className: "autocomplete-" + completions.entries[i].kind,
+                        docComment: this.joinParts(details.documentation),
                         livePreview: false
                     });
                 }
@@ -114,9 +117,16 @@
 
             $('.tooltip').remove();
 
-            var signature = this.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
+            var signatures = this.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
 
-            if (signature) {
+            if (signatures && signatures.items && signatures.selectedItemIndex >= 0) {
+
+                var signature = signatures.items[signatures.selectedItemIndex];
+
+                var paramsString = signature.parameters
+                    .map(p => this.joinParts(p.displayParts))
+                    .join(this.joinParts(signature.separatorDisplayParts));
+                var signatureString = this.joinParts(signature.prefixDisplayParts) + paramsString + this.joinParts(signature.suffixDisplayParts);
 
                 this.tooltipLastPos = changePosition;
                 var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
@@ -124,46 +134,13 @@
 
                 $(domElement).data('bs.tooltip', false).tooltip({
                     html: true,
-                    title: '<div class="tooltip-typeInfo">' + signature.formal[0].signatureInfo + '</div>' + '<div class="tooltip-docComment">' + signature.formal[0].docComment.replace('\n', '<br/>') + '</div>',
+                    title: '<div class="tooltip-typeInfo">' + signatureString + '</div>' + '<div class="tooltip-docComment">' + this.joinParts(signature.documentation) + '</div>',
                     trigger: 'manual', container: 'body', placement: 'bottom'
                 });
                 $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
                     $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px")
             });
                 $(domElement).tooltip('show');
-            }
-        }
-
-        private showFieldInternalNamesDropDown(cm: CodeMirror.Doc, changePosition: CodeMirror.Position) {
-            var position = cm.indexFromPos(changePosition) + 1;
-            var symbolInfo = this.typeScriptService.getSymbolInfo(position);
-            var typeMembers = symbolInfo.symbol.type.getMembers();
-            var found = true;
-            for (var i = 0; i < typeMembers.length; i++) {
-                if (typeMembers[i].name != "View"
-                    && typeMembers[i].name != "EditForm"
-                    && typeMembers[i].name != "DisplayForm"
-                    && typeMembers[i].name != "NewForm") {
-                    found = false;
-                    break;
-                }
-            }
-
-            if (found) {
-
-                var list = [];
-                for (var i = 0; i < this.fieldNames.length; i++) {
-                    // field internal names
-                    list.push({
-                        text: '"' + this.fieldNames[i] + '"',
-                        displayText: this.fieldNames[i],
-                        docComment: "",
-                        livePreview: true
-                    });
-                }
-
-                this.showCodeMirrorHint(cm, list);
-
             }
         }
 
@@ -177,13 +154,6 @@
             else if (changeObj.text.length == 1 && changeObj.text[0] == ')') {
                 $('.tooltip').remove();
             }
-            else if ((changeObj.from.ch > 0 && cm.getRange({ ch: changeObj.from.ch - 1, line: changeObj.from.line }, changeObj.from) == '"')
-                || changeObj.text.length == 1 && changeObj.text[0] == '"') {
-                this.showFieldInternalNamesDropDown(cm, changeObj.to);
-            }
-            //else if (changeObj.from.ch > 0 && /^\s[a-zA-Z][a-zA-Z0-9]$/.test(cm.getRange({ ch: changeObj.from.ch - 3, line: changeObj.from.line }, changeObj.from))) {
-            //    this.showAutoCompleteDropDown(cm, changeObj.to);
-            //}
         }
     }
 }
