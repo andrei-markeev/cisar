@@ -394,29 +394,24 @@ var CSREditor;
                 if (url in _this.modifiedFilesContent)
                     _this.setEditorText(url, _this.modifiedFilesContent[url]);
                 else {
-                    CSREditor.ChromeIntegration.getResourceContent(url, function (text, isError) {
-                        if (!isError)
-                            _this.setEditorText(url, text);
-                        else
-                            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_getFileContent(url), function (result, errorInfo) {
-                                if (errorInfo)
-                                    console.log(errorInfo);
-                                else {
-                                    var handle = setInterval(function () {
-                                        CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result2, errorInfo) {
-                                            if (errorInfo)
-                                                console.log(errorInfo);
-                                            else if (result2 != "wait") {
-                                                clearInterval(handle);
-                                                if (result2 == "error")
-                                                    alert("There was an error when getting file " + url + ". Please check console for details.");
-                                                else
-                                                    _this.setEditorText(url, result2);
-                                            }
-                                        });
-                                    }, 400);
-                                }
-                            });
+                    CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_getFileContent(url), function (result, errorInfo) {
+                        if (errorInfo)
+                            console.log(errorInfo);
+                        else {
+                            var handle = setInterval(function () {
+                                CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result2, errorInfo) {
+                                    if (errorInfo)
+                                        console.log(errorInfo);
+                                    else if (result2 != "wait") {
+                                        clearInterval(handle);
+                                        if (result2 == "error")
+                                            alert("There was an error when getting file " + url + ". Please check console for details.");
+                                        else
+                                            _this.setEditorText(url, result2);
+                                    }
+                                });
+                            }, 400);
+                        }
                     });
                 }
             }, this.setEditorText.bind(this));

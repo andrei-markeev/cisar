@@ -22,40 +22,35 @@
                 if (url in this.modifiedFilesContent)
                     this.setEditorText(url, this.modifiedFilesContent[url]);
                 else {
-                    ChromeIntegration.getResourceContent(url, (text: string, isError: boolean) => {
-                        if (!isError)
-                            this.setEditorText(url, text);
-                        else
-                            ChromeIntegration.eval(SPActions.getCode_getFileContent(url), (result, errorInfo) => {
-                                if (errorInfo)
-                                    console.log(errorInfo);
-                                else {
+                    ChromeIntegration.eval(SPActions.getCode_getFileContent(url), (result, errorInfo) => {
+                        if (errorInfo)
+                            console.log(errorInfo);
+                        else {
 
-                                    var handle = setInterval(() => {
+                            var handle = setInterval(() => {
 
-                                        CSREditor.ChromeIntegration.eval(
+                                CSREditor.ChromeIntegration.eval(
 
-                                            SPActions.getCode_checkFileContentRetrieved(),
+                                    SPActions.getCode_checkFileContentRetrieved(),
 
-                                            (result2, errorInfo) => {
-                                                if (errorInfo)
-                                                    console.log(errorInfo);
-                                                else if (result2 != "wait") {
-                                                    clearInterval(handle);
-                                                    if (result2 == "error")
-                                                        alert("There was an error when getting file " + url + ". Please check console for details.");
-                                                    else
-                                                        this.setEditorText(url, result2);
-                                                }
+                                    (result2, errorInfo) => {
+                                        if (errorInfo)
+                                            console.log(errorInfo);
+                                        else if (result2 != "wait") {
+                                            clearInterval(handle);
+                                            if (result2 == "error")
+                                                alert("There was an error when getting file " + url + ". Please check console for details.");
+                                            else
+                                                this.setEditorText(url, result2);
+                                        }
 
-                                            });
+                                    });
 
-                                    }, 400);
+                            }, 400);
 
-                                }
+                        }
 
-                            });                            
-                    });
+                    });                            
                 }
             }, this.setEditorText.bind(this));
 
