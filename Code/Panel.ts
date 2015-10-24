@@ -112,8 +112,10 @@
             if (url == null)
                 return;
 
-            if (newlyCreated)
+            if (newlyCreated) {
                 this.modifiedFilesContent[url] = text;
+                this.filesList.saveChangesToFile(url, text, true);
+            }
             ChromeIntegration.eval(SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), (result, errorInfo) => {
                 var fieldNames = [];
                 for (var i in result) {

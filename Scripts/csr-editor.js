@@ -214,12 +214,14 @@ var CSREditor;
             content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_performCSRRefresh(url, content));
         };
-        FilesList.prototype.saveChangesToFile = function (url, content) {
+        FilesList.prototype.saveChangesToFile = function (url, content, saveNow) {
             var _this = this;
             url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
-            this.savingQueue[url] = { content: content, cooldown: 5 };
+            this.savingQueue[url] = { content: content, cooldown: 3 };
+            if (saveNow)
+                this.savingQueue[url].cooldown = 1;
             if (!this.savingProcess) {
                 this.savingProcess = setInterval(function () {
                     for (var fileUrl in _this.savingQueue) {
@@ -493,8 +495,10 @@ var CSREditor;
             this.editorCM.setOption("readOnly", url == null);
             if (url == null)
                 return;
-            if (newlyCreated)
+            if (newlyCreated) {
                 this.modifiedFilesContent[url] = text;
+                this.filesList.saveChangesToFile(url, text, true);
+            }
             CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), function (result, errorInfo) {
                 var fieldNames = [];
                 for (var i in result) {

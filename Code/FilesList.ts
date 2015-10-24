@@ -132,13 +132,15 @@ module CSREditor {
             CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content));
         }
 
-        public saveChangesToFile(url: string, content: string) {
+        public saveChangesToFile(url: string, content: string, saveNow: boolean) {
 
             url = Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
             
-            this.savingQueue[url] = { content: content, cooldown: 5 };
+            this.savingQueue[url] = { content: content, cooldown: 3 };
+            if (saveNow)
+                this.savingQueue[url].cooldown = 1;
 
             if (!this.savingProcess) {
                 this.savingProcess = setInterval(() => {
