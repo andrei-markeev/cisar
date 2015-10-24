@@ -504,7 +504,7 @@ var CSREditor;
                 var errors = _this.typeScriptService.getErrors();
                 for (var i = 0; i < errors.length; i++) {
                     var text = "";
-                    if (errors[i].messageText instanceof String)
+                    if (typeof errors[i].messageText == "string")
                         text = errors[i].messageText;
                     else {
                         var chain = errors[i].messageText;

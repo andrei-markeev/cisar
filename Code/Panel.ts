@@ -159,7 +159,7 @@
                 var errors = this.typeScriptService.getErrors();
                 for (var i = 0; i < errors.length; i++) {
                     var text = "";
-                    if (errors[i].messageText instanceof String)
+                    if (typeof errors[i].messageText == "string")
                         text = <string>errors[i].messageText;
                     else {
                         var chain = <ts.DiagnosticMessageChain>errors[i].messageText;
