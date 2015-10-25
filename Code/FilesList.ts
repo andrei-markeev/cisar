@@ -8,7 +8,7 @@ module CSREditor {
         public currentWebPart: WebPartModel;
         public currentFile: FileModel;
         public webparts: WebPartModel[];
-        public otherFiles: FileModel[] = [];
+        public otherFiles: FileModel[];
 
         public loadFileToEditor: { (url: string): void };
         public setEditorText: { (url: string, text: string, newlyCreated?: boolean): void };
@@ -19,11 +19,46 @@ module CSREditor {
         constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
-            this.webparts = [];
-            this.loading = true;
             this.filesPath = localStorage['filesPath'] || "/Style Library/";
 
-            CSREditor.ChromeIntegration.eval(SPActions.getCode_listCsrWebparts(),(result, errorInfo) => {
+            this.reload();
+
+            ko.track(this);
+            ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
+                localStorage['filesPath'] = newValue;
+            });
+            ko.applyBindings(this);
+
+            (<HTMLDivElement>document.querySelector('.separator')).onclick = (ev: MouseEvent) => {
+                if (document.body.className.indexOf("fullscreen") > -1)
+                    document.body.className = document.body.className.replace("fullscreen", "");
+                else
+                    document.body.className += " fullscreen";
+            };
+        }
+
+        public reload() {
+
+            this.loading = true;
+            this.webparts = [];
+            this.otherFiles = [];
+
+            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
+                if (!errorInfo) {
+                    var siteUrl = result.toLowerCase();
+                    this.siteUrl = siteUrl;
+                    ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
+                        this.addOtherFiles(Object.keys(urls));
+                        this.loadWebParts();
+                    });
+                }
+            });
+
+        }
+
+        private loadWebParts() {
+
+            CSREditor.ChromeIntegration.eval(SPActions.getCode_listCsrWebparts(), (result, errorInfo) => {
                 if (errorInfo) {
                     console.log(errorInfo);
                     return;
@@ -34,18 +69,12 @@ module CSREditor {
                     wpDict[wp.wpq] = wp;
                     this.webparts.push(wp);
                 }
-                ko.track(this);
-                ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
-                    localStorage['filesPath'] = newValue;
-                });
-                ko.applyBindings(this);
 
                 CSREditor.ChromeIntegration.waitForResult(SPActions.getCode_checkJSLinkInfoRetrieved(), (jsLinkInfo, errorInfo) => {
 
                     this.loading = false;
 
-                    if (errorInfo || jsLinkInfo == "error")
-                    {
+                    if (errorInfo || jsLinkInfo == "error") {
                         if (errorInfo) console.log(errorInfo);
                         alert("There was an error when getting list of files. Please check console for details.");
                         return;
@@ -68,15 +97,8 @@ module CSREditor {
                     }
 
                 });
+
             });
-
-
-            (<HTMLDivElement>document.querySelector('.separator')).onclick = (ev: MouseEvent) => {
-                if (document.body.className.indexOf("fullscreen") > -1)
-                    document.body.className = document.body.className.replace("fullscreen", "");
-                else
-                    document.body.className += " fullscreen";
-            };
         }
 
         public pathInputKeyDown(data, event) {

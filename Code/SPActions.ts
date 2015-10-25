@@ -508,7 +508,7 @@ module CSREditor {
             if (url[0] != '/')
                 url = '/' + url;
             var r = new Sys.Net.WebRequest();
-            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url);
+            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url + "?" + Date.now());
             r.set_httpVerb("GET");
             r.add_completed((executor, args) => {
                 if (executor.get_responseAvailable()) {
@@ -536,6 +536,16 @@ module CSREditor {
                 return "wait";
         }
 
+        public static getCode_checkPageIsLoaded() {
+            return "(" + SPActions.checkPageIsLoaded + ")();";
+        }
+        private static checkPageIsLoaded() {
+            if (window["SP"] && window["_spPageContextInfo"] && window["SP"]["ClientContext"]) {
+                return "loaded";
+            }
+            else
+                return "wait";
+        }
     }
 
 }

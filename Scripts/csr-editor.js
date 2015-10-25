@@ -142,17 +142,44 @@ var CSREditor;
 (function (CSREditor) {
     var FilesList = (function () {
         function FilesList(loadUrlToEditor, setEditorText) {
-            var _this = this;
             this.changePathDialogShown = false;
-            this.otherFiles = [];
             this.siteUrl = "";
             this.savingQueue = {};
             this.savingProcess = null;
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
-            this.webparts = [];
-            this.loading = true;
             this.filesPath = localStorage['filesPath'] || "/Style Library/";
+            this.reload();
+            ko.track(this);
+            ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
+                localStorage['filesPath'] = newValue;
+            });
+            ko.applyBindings(this);
+            document.querySelector('.separator').onclick = function (ev) {
+                if (document.body.className.indexOf("fullscreen") > -1)
+                    document.body.className = document.body.className.replace("fullscreen", "");
+                else
+                    document.body.className += " fullscreen";
+            };
+        }
+        FilesList.prototype.reload = function () {
+            var _this = this;
+            this.loading = true;
+            this.webparts = [];
+            this.otherFiles = [];
+            CSREditor.ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
+                if (!errorInfo) {
+                    var siteUrl = result.toLowerCase();
+                    _this.siteUrl = siteUrl;
+                    CSREditor.ChromeIntegration.getAllResources(siteUrl, function (urls) {
+                        _this.addOtherFiles(Object.keys(urls));
+                        _this.loadWebParts();
+                    });
+                }
+            });
+        };
+        FilesList.prototype.loadWebParts = function () {
+            var _this = this;
             CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_listCsrWebparts(), function (result, errorInfo) {
                 if (errorInfo) {
                     console.log(errorInfo);
@@ -164,11 +191,6 @@ var CSREditor;
                     wpDict[wp.wpq] = wp;
                     _this.webparts.push(wp);
                 }
-                ko.track(_this);
-                ko.getObservable(_this, 'filesPath').subscribe(function (newValue) {
-                    localStorage['filesPath'] = newValue;
-                });
-                ko.applyBindings(_this);
                 CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (jsLinkInfo, errorInfo) {
                     _this.loading = false;
                     if (errorInfo || jsLinkInfo == "error") {
@@ -190,13 +212,7 @@ var CSREditor;
                     }
                 });
             });
-            document.querySelector('.separator').onclick = function (ev) {
-                if (document.body.className.indexOf("fullscreen") > -1)
-                    document.body.className = document.body.className.replace("fullscreen", "");
-                else
-                    document.body.className += " fullscreen";
-            };
-        }
+        };
         FilesList.prototype.pathInputKeyDown = function (data, event) {
             var _this = this;
             return CSREditor.Utils.safeEnterPath(event, this.filesPath, function () {
@@ -410,15 +426,16 @@ var CSREditor;
             this.editorCM = this.initEditor();
             this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
             this.filesList = new CSREditor.FilesList(this.loadUrlToEditor.bind(this), this.setEditorText.bind(this));
-            CSREditor.ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
-                if (!errorInfo) {
-                    var siteUrl = result.toLowerCase();
-                    _this.filesList.siteUrl = siteUrl;
-                    CSREditor.ChromeIntegration.getAllResources(siteUrl, function (urls) {
-                        _this.filesList.addOtherFiles(Object.keys(urls));
-                    });
-                }
+            this.loadWindowKeys();
+            CSREditor.ChromeIntegration.setNavigatedListener(function (pageUrl) {
+                CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkPageIsLoaded(), function () {
+                    _this.filesList.reload();
+                    _this.loadWindowKeys();
+                });
             });
+        };
+        Panel.prototype.loadWindowKeys = function () {
+            var _this = this;
             CSREditor.ChromeIntegration.eval("keys(window)", function (result, errorInfo) {
                 if (!errorInfo) {
                     var windowTS = '';
@@ -958,7 +975,7 @@ var CSREditor;
             if (url[0] != '/')
                 url = '/' + url;
             var r = new Sys.Net.WebRequest();
-            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url);
+            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url + "?" + Date.now());
             r.set_httpVerb("GET");
             r.add_completed(function (executor, args) {
                 if (executor.get_responseAvailable()) {
@@ -979,6 +996,16 @@ var CSREditor;
                 var result = window["g_Cisar_FileContents"];
                 delete window["g_Cisar_FileContents"];
                 return result;
+            }
+            else
+                return "wait";
+        };
+        SPActions.getCode_checkPageIsLoaded = function () {
+            return "(" + SPActions.checkPageIsLoaded + ")();";
+        };
+        SPActions.checkPageIsLoaded = function () {
+            if (window["SP"] && window["_spPageContextInfo"] && window["SP"]["ClientContext"]) {
+                return "loaded";
             }
             else
                 return "wait";

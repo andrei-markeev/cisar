@@ -19,16 +19,17 @@
             this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
 
             this.filesList = new CSREditor.FilesList(this.loadUrlToEditor.bind(this), this.setEditorText.bind(this));
+            this.loadWindowKeys();
 
-            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
-                if (!errorInfo) {
-                    var siteUrl = result.toLowerCase();
-                    this.filesList.siteUrl = siteUrl;
-                    ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
-                        this.filesList.addOtherFiles(Object.keys(urls));
-                    });
-                }
+            ChromeIntegration.setNavigatedListener((pageUrl) => {
+                ChromeIntegration.waitForResult(SPActions.getCode_checkPageIsLoaded(), () => {
+                    this.filesList.reload();
+                    this.loadWindowKeys();
+                });
             });
+        }
+
+        private loadWindowKeys() {
 
             ChromeIntegration.eval("keys(window)", (result, errorInfo) => {
                 if (!errorInfo) {
