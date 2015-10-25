@@ -1067,7 +1067,7 @@ var CSREditor;
                 if (client.readyState != 4)
                     return;
                 self.tsHost = new TypeScriptServiceHost(client.responseText);
-                self.tsService = ts.createLanguageService(self.tsHost, ts.createDocumentRegistry([]));
+                self.tsService = ts.createLanguageService(self.tsHost, ts.createDocumentRegistry());
             };
             client.send();
         }

@@ -1,14 +1,14 @@
 {
 	"name": "Cisar",
-    "homepage_url": "https://github.com/andrei-markeev/cisar",
-	"version": "1.1.0",
+  "homepage_url": "https://github.com/andrei-markeev/cisar",
+	"version": "1.2.0",
 	"description": "SharePoint CSR Live Edit",
 	"icons": {
         "48": "AppIcon48.png",
         "96": "AppIcon96.png",
         "128": "AppIcon.png"
 	},
-    "devtools_page": "devtools.html",
-    "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+  "devtools_page": "devtools.html",
+  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
 	"manifest_version": 2
 }
