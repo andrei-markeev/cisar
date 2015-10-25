@@ -167,6 +167,8 @@ var CSREditor;
             this.loading = true;
             this.webparts = [];
             this.otherFiles = [];
+            this.currentWebPart = null;
+            this.currentFile = null;
             CSREditor.ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
                 if (!errorInfo) {
                     var siteUrl = result.toLowerCase();
@@ -429,6 +431,7 @@ var CSREditor;
             this.loadWindowKeys();
             CSREditor.ChromeIntegration.setNavigatedListener(function (pageUrl) {
                 CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkPageIsLoaded(), function () {
+                    _this.setEditorText(null, "");
                     _this.filesList.reload();
                     _this.loadWindowKeys();
                 });

@@ -42,6 +42,8 @@ module CSREditor {
             this.loading = true;
             this.webparts = [];
             this.otherFiles = [];
+            this.currentWebPart = null;
+            this.currentFile = null;
 
             ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
                 if (!errorInfo) {

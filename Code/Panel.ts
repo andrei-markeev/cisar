@@ -23,6 +23,7 @@
 
             ChromeIntegration.setNavigatedListener((pageUrl) => {
                 ChromeIntegration.waitForResult(SPActions.getCode_checkPageIsLoaded(), () => {
+                    this.setEditorText(null, "");
                     this.filesList.reload();
                     this.loadWindowKeys();
                 });
