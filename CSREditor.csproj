@@ -20,6 +20,7 @@
   <ItemGroup>
     <Content Include="AppIcon.png" />
     <TypeScriptCompile Include="Code\IntellisenseHelper.ts" />
+    <TypeScriptCompile Include="Code\NewFileHelper.ts" />
     <TypeScriptCompile Include="Code\SPActions.ts" />
     <Content Include="Content\bootstrap.min.css" />
     <Content Include="Content\codemirror\codemirror.css" />
@@ -57,6 +58,7 @@
     <TypeScriptCompile Include="Code\TypeScriptService.ts" />
     <TypeScriptCompile Include="Code\Utils.ts" />
     <TypeScriptCompile Include="Code\FileModel.ts" />
+    <TypeScriptCompile Include="Code\IWebPartInfoFromSP.ts" />
     <TypeScriptCompile Include="Code\WebPartModel.ts" />
     <TypeScriptCompile Include="Scripts\typings\bootstrap\bootstrap.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\camljs\camljs.d.ts" />
