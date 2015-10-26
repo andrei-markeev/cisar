@@ -413,6 +413,92 @@ var CSREditor;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
 (function (CSREditor) {
+    var NewFileHelper = (function () {
+        function NewFileHelper() {
+        }
+        NewFileHelper.performNewFileCreation = function (filesList, webpart) {
+            var _this = this;
+            webpart.adding = false;
+            webpart.loading = true;
+            if (webpart.newFileName.indexOf('.js') == -1)
+                webpart.newFileName += '.js';
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_createFileInSharePoint(filesList.filesPath.toLowerCase(), webpart.newFileName, webpart.id, webpart.ctxKey), CSREditor.SPActions.getCode_checkFileCreated(), function (result, errorInfo) {
+                webpart.loading = false;
+                if (errorInfo || result == "error") {
+                    alert("There was an error when creating the file. Please check console for details.");
+                    if (errorInfo)
+                        console.log(errorInfo);
+                }
+                else if (result == "created") {
+                    var fullUrl = (filesList.siteUrl + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
+                    var file = webpart.appendFileToList(fullUrl, true);
+                    var templateText = _this.generateTemplate(webpart, filesList.filesPath);
+                    filesList.setEditorText(file.url, templateText, true);
+                }
+                else if (result == "existing") {
+                    var fullUrl = (filesList.siteUrl + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
+                    webpart.appendFileToList(fullUrl, false);
+                }
+            });
+        };
+        NewFileHelper.generateTemplate = function (webpart, filesPath) {
+            if (!webpart.fields || webpart.fields.length == 0)
+                webpart.fields = ['<field internal name>'];
+            var fieldMarkup = '      //     Fields: {\r\n';
+            for (var f = 0; f < webpart.fields.length; f++) {
+                var field = webpart.fields[f];
+                if (field == "Attachments" || field == "Created" || field == "Modified"
+                    || field == "Author" || field == "Editor" || field == "_UIVersionString")
+                    continue;
+                fieldMarkup +=
+                    '      //         "' + field + '": {\r\n' +
+                        '      //             View: function(ctx) { return ""; },\r\n' +
+                        '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                        '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                        '      //             NewForm: function(ctx) { return ""; }\r\n' +
+                        ((f === webpart.fields.length - 1) ?
+                            '      //         }\r\n'
+                            :
+                                '      //         },\r\n');
+            }
+            ;
+            fieldMarkup += '      //     },\r\n';
+            var wptype = webpart.isListForm ? "LFWP" : "XLV";
+            return '// The file has been created, saved into "' + filesPath + '"\r\n' +
+                '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
+                'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
+                '  function getBaseHtml(ctx) {\r\n' +
+                '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
+                '  }\r\n\r\n' +
+                '  function init() {\r\n\r\n' +
+                '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
+                '      // OnPreRender: function(ctx) { },\r\n\r\n' +
+                '      Templates: {\r\n\r\n' +
+                (webpart.isListForm ? '' :
+                    '      //     View: function(ctx) { return ""; },\r\n' +
+                        '      //     Header: function(ctx) { return ""; },\r\n' +
+                        '      //     Body: function(ctx) { return ""; },\r\n' +
+                        '      //     Group: function(ctx) { return ""; },\r\n' +
+                        '      //     Item: function(ctx) { return ""; },\r\n') +
+                fieldMarkup +
+                (webpart.isListForm ? '' :
+                    '      //     Footer: function(ctx) { return ""; }\r\n') +
+                '\r\n' +
+                '      },\r\n\r\n' +
+                '      // OnPostRender: function(ctx) { },\r\n\r\n' +
+                '      ListTemplateType: ' + webpart.listTemplateType + '\r\n\r\n' +
+                '    });\r\n' +
+                '  }\r\n\r\n' +
+                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + filesPath + webpart.newFileName + '"), init);\r\n' +
+                '  init();\r\n\r\n' +
+                '});\r\n';
+        };
+        return NewFileHelper;
+    })();
+    CSREditor.NewFileHelper = NewFileHelper;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
     var Panel = (function () {
         function Panel() {
             this.fileName = null;
@@ -1157,10 +1243,10 @@ var CSREditor;
     var WebPartModel = (function () {
         function WebPartModel(root, info) {
             this.files = [];
-            this.fileFlags = {};
             this.adding = false;
             this.loading = false;
             this.newFileName = '';
+            this.fileFlags = {};
             this.root = root;
             this.title = info.title;
             this.id = info.wpId;
@@ -1202,84 +1288,7 @@ var CSREditor;
         };
         WebPartModel.prototype.fileNameInputKeyDown = function (data, event) {
             var _this = this;
-            return CSREditor.Utils.safeEnterFileName(event, this.newFileName, function () { _this.performNewFileCreation(); }, function () { _this.adding = false; });
-        };
-        WebPartModel.prototype.performNewFileCreation = function () {
-            var _this = this;
-            this.adding = false;
-            this.loading = true;
-            if (this.newFileName.indexOf('.js') == -1)
-                this.newFileName += '.js';
-            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_createFileInSharePoint(this.root.filesPath.toLowerCase(), this.newFileName, this.id, this.ctxKey), CSREditor.SPActions.getCode_checkFileCreated(), function (result, errorInfo) {
-                _this.loading = false;
-                if (errorInfo || result == "error") {
-                    alert("There was an error when creating the file. Please check console for details.");
-                    if (errorInfo)
-                        console.log(errorInfo);
-                }
-                else if (result == "created") {
-                    var fullUrl = (_this.root.siteUrl + _this.root.filesPath.replace(' ', '%20') + _this.newFileName).toLowerCase();
-                    var file = _this.appendFileToList(fullUrl, true);
-                    var templateText = _this.generateTemplate();
-                    _this.root.setEditorText(file.url, templateText, true);
-                }
-                else if (result == "existing") {
-                    var fullUrl = (_this.root.siteUrl + _this.root.filesPath.replace(' ', '%20') + _this.newFileName).toLowerCase();
-                    _this.appendFileToList(fullUrl, false);
-                }
-            });
-        };
-        WebPartModel.prototype.generateTemplate = function () {
-            if (!this.fields || this.fields.length == 0)
-                this.fields = ['<field internal name>'];
-            var fieldMarkup = '      //     Fields: {\r\n';
-            for (var f = 0; f < this.fields.length; f++) {
-                var field = this.fields[f];
-                if (field == "Attachments" || field == "Created" || field == "Modified"
-                    || field == "Author" || field == "Editor" || field == "_UIVersionString")
-                    continue;
-                fieldMarkup +=
-                    '      //         "' + field + '": {\r\n' +
-                        '      //             View: function(ctx) { return ""; },\r\n' +
-                        '      //             EditForm: function(ctx) { return ""; },\r\n' +
-                        '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
-                        '      //             NewForm: function(ctx) { return ""; }\r\n' +
-                        ((f === this.fields.length - 1) ?
-                            '      //         }\r\n'
-                            :
-                                '      //         },\r\n');
-            }
-            ;
-            fieldMarkup += '      //     },\r\n';
-            var wptype = this.isListForm ? "LFWP" : "XLV";
-            return '// The file has been created, saved into "' + this.root.filesPath + '"\r\n' +
-                '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
-                'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
-                '  function getBaseHtml(ctx) {\r\n' +
-                '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
-                '  }\r\n\r\n' +
-                '  function init() {\r\n\r\n' +
-                '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
-                '      // OnPreRender: function(ctx) { },\r\n\r\n' +
-                '      Templates: {\r\n\r\n' +
-                (this.isListForm ? '' :
-                    '      //     View: function(ctx) { return ""; },\r\n' +
-                        '      //     Header: function(ctx) { return ""; },\r\n' +
-                        '      //     Body: function(ctx) { return ""; },\r\n' +
-                        '      //     Group: function(ctx) { return ""; },\r\n' +
-                        '      //     Item: function(ctx) { return ""; },\r\n') +
-                fieldMarkup +
-                (this.isListForm ? '' :
-                    '      //     Footer: function(ctx) { return ""; }\r\n') +
-                '\r\n' +
-                '      },\r\n\r\n' +
-                '      // OnPostRender: function(ctx) { },\r\n\r\n' +
-                '      ListTemplateType: ' + this.listTemplateType + '\r\n\r\n' +
-                '    });\r\n' +
-                '  }\r\n\r\n' +
-                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + this.root.filesPath + this.newFileName + '"), init);\r\n' +
-                '  init();\r\n\r\n' +
-                '});\r\n';
+            return CSREditor.Utils.safeEnterFileName(event, this.newFileName, function () { CSREditor.NewFileHelper.performNewFileCreation(_this.root, _this); }, function () { _this.adding = false; });
         };
         return WebPartModel;
     })();
