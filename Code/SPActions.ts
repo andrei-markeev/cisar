@@ -118,7 +118,7 @@ module CSREditor {
         }
 
         private static retrieveFieldsInfo(ctxKey) {
-            return window[ctxKey].ListSchema.Field || window[ctxKey].ListSchema;
+            return window[ctxKey]["ListSchema"].Field || window[ctxKey]["ListSchema"];
         }
 
 
@@ -143,7 +143,7 @@ module CSREditor {
                 var webpart = webpartDef.get_webPart();
                 var properties = webpart.get_properties();
                 context.load(properties);
-                    
+
                 var setupJsLink = function (properties) {
                     var jsLinkString = (properties.get_item("JSLink") || "") + "|~sitecollection" + path + fileName;
                     if (jsLinkString[0] == '|')
@@ -227,7 +227,7 @@ module CSREditor {
             return "(" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "');";
         }
         private static performCSRRefresh(url: string, content: string) {
-            
+
             var extend = function (dest, source) {
                 for (var p in source) {
                     if (source[p] && source[p].constructor && source[p].constructor === Object) {
@@ -428,8 +428,7 @@ module CSREditor {
                 context.load(file, 'Level', 'CheckOutType');
 
                 context.executeQueryAsync(function () {
-                    context.load(file, 'Level', 'CheckOutType');
-                    if (file.get_checkOutType() != SP.CheckOutType.none && file.get_level() == SP.FileLevel.draft) {
+                    if (file.get_level() == SP.FileLevel.draft) {
                         file.publish("Published by Cisar");
 
                         context.executeQueryAsync(function () {
@@ -439,7 +438,8 @@ module CSREditor {
                             console.log('Cisar fatal error when publishing file ' + fileName + ': ' + args.get_message());
                         });
                     }
-                    console.log('Cisar: file published successfully.');
+                    else
+                      console.log('Cisar: file does not need to be published. file.get_level()=' + file.get_level());
                 },
                 function (sender, args) {
                     console.log('Cisar fatal error when publishing file ' + fileName + ' to path "' + path + '": ' + args.get_message());
@@ -468,7 +468,7 @@ module CSREditor {
 
                 context.executeQueryAsync(function () {
                     var oldJsLinkString = properties.get_item("JSLink");
-                    url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
+                    url = url.replace(_spPageContextInfo.siteServerRelativeUrl.toLowerCase(), '');
                     if (url[0] != '/')
                         url = '/' + url;
                     var jsLinkString = properties.get_item("JSLink")
@@ -504,11 +504,11 @@ module CSREditor {
         }
         private static getFileContent(url: string) {
             delete window["g_Cisar_FileContents"];
-            url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
-            if (url[0] != '/')
-                url = '/' + url;
+            var domainPart = _spPageContextInfo.siteAbsoluteUrl;
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+               domainPart = _spPageContextInfo.siteAbsoluteUrl.replace(_spPageContextInfo.siteServerRelativeUrl, '');
             var r = new Sys.Net.WebRequest();
-            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url + "?" + Date.now());
+            r.set_url(domainPart + url + "?" + Date.now());
             r.set_httpVerb("GET");
             r.add_completed((executor, args) => {
                 if (executor.get_responseAvailable()) {

@@ -663,7 +663,6 @@ var CSREditor;
                 var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
                 if (window["WPQ" + wpqId + "FormCtx"]) {
                     var ctx = window["WPQ" + wpqId + "FormCtx"];
-                    // add fields to context
                     var fields = [];
                     for (var f in ctx.FieldControlModes) {
                         if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
@@ -741,7 +740,7 @@ var CSREditor;
             return "(" + SPActions.retrieveFieldsInfo + ")('" + ctxKey + "');";
         };
         SPActions.retrieveFieldsInfo = function (ctxKey) {
-            return window[ctxKey].ListSchema.Field || window[ctxKey].ListSchema;
+            return window[ctxKey]["ListSchema"].Field || window[ctxKey]["ListSchema"];
         };
         SPActions.getCode_createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
             return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + ctxKey + "');";
@@ -997,8 +996,7 @@ var CSREditor;
                 var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
                 context.load(file, 'Level', 'CheckOutType');
                 context.executeQueryAsync(function () {
-                    context.load(file, 'Level', 'CheckOutType');
-                    if (file.get_checkOutType() != SP.CheckOutType.none && file.get_level() == SP.FileLevel.draft) {
+                    if (file.get_level() == SP.FileLevel.draft) {
                         file.publish("Published by Cisar");
                         context.executeQueryAsync(function () {
                             console.log('Cisar: file has been published successfully.');
@@ -1006,7 +1004,8 @@ var CSREditor;
                             console.log('Cisar fatal error when publishing file ' + fileName + ': ' + args.get_message());
                         });
                     }
-                    console.log('Cisar: file published successfully.');
+                    else
+                        console.log('Cisar: file does not need to be published. file.get_level()=' + file.get_level());
                 }, function (sender, args) {
                     console.log('Cisar fatal error when publishing file ' + fileName + ' to path "' + path + '": ' + args.get_message());
                 });
@@ -1029,7 +1028,7 @@ var CSREditor;
                 context.load(properties);
                 context.executeQueryAsync(function () {
                     var oldJsLinkString = properties.get_item("JSLink");
-                    url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
+                    url = url.replace(_spPageContextInfo.siteServerRelativeUrl.toLowerCase(), '');
                     if (url[0] != '/')
                         url = '/' + url;
                     var jsLinkString = properties.get_item("JSLink")
@@ -1060,11 +1059,11 @@ var CSREditor;
         };
         SPActions.getFileContent = function (url) {
             delete window["g_Cisar_FileContents"];
-            url = url.replace(_spPageContextInfo.siteServerRelativeUrl, '');
-            if (url[0] != '/')
-                url = '/' + url;
+            var domainPart = _spPageContextInfo.siteAbsoluteUrl;
+            if (_spPageContextInfo.siteServerRelativeUrl != '/')
+                domainPart = _spPageContextInfo.siteAbsoluteUrl.replace(_spPageContextInfo.siteServerRelativeUrl, '');
             var r = new Sys.Net.WebRequest();
-            r.set_url(_spPageContextInfo.siteAbsoluteUrl + url + "?" + Date.now());
+            r.set_url(domainPart + url + "?" + Date.now());
             r.set_httpVerb("GET");
             r.add_completed(function (executor, args) {
                 if (executor.get_responseAvailable()) {
@@ -1294,4 +1293,3 @@ var CSREditor;
     })();
     CSREditor.WebPartModel = WebPartModel;
 })(CSREditor || (CSREditor = {}));
-//# sourceMappingURL=csr-editor.js.map
