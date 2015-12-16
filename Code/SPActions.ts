@@ -18,7 +18,13 @@ module CSREditor {
             var webparts = [];
             var wp_properties = [];
             var wpqId = 2;
-            while ($get("WebPartWPQ" + wpqId) != null) {
+
+            if (GetUrlKeyValue("PageView") == "Personal") {
+                window["g_Cisar_JSLinkUrls"] = "personal";
+                return [];
+            }
+
+            while ($get("MSOZoneCell_WebPartWPQ" + wpqId) != null) {
                 var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
                 if (window["WPQ" + wpqId + "FormCtx"]) {
 
@@ -76,25 +82,31 @@ module CSREditor {
             }
 
             delete window["g_Cisar_JSLinkUrls"];
-            context.executeQueryAsync(
-                function () {
-                    var urls = {};
-                    for (var i = 0; i < wp_properties.length; i++) {
-                        var urlsString = wp_properties[i].properties.get_item('JSLink') || '';
-                        if (urlsString != '') {
-                            var urlsArray = urlsString.split('|');
-                            for (var x = 0; x < urlsArray.length; x++) {
-                                urlsArray[x] = SPClientTemplates.Utility.ReplaceUrlTokens(urlsArray[x]);
+
+            if (webparts.length > 0) {
+                context.executeQueryAsync(
+                    function () {
+                        var urls = {};
+                        for (var i = 0; i < wp_properties.length; i++) {
+                            var urlsString = wp_properties[i].properties.get_item('JSLink') || '';
+                            if (urlsString != '') {
+                                var urlsArray = urlsString.split('|');
+                                for (var x = 0; x < urlsArray.length; x++) {
+                                    urlsArray[x] = SPClientTemplates.Utility.ReplaceUrlTokens(urlsArray[x]);
+                                }
+                                urls[wp_properties[i].wpqId] = urlsArray;
                             }
-                            urls[wp_properties[i].wpqId] = urlsArray;
                         }
-                    }
-                    window["g_Cisar_JSLinkUrls"] = urls;
-                },
-                function (s, args) {
-                    console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
-                    window["g_Cisar_JSLinkUrls"] = 'error';
-                })
+                        window["g_Cisar_JSLinkUrls"] = urls;
+                    },
+                    function (s, args) {
+                        console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
+                        console.log(webparts);
+                        window["g_Cisar_JSLinkUrls"] = 'error';
+                    });
+            } else {
+                window["g_Cisar_JSLinkUrls"] = {};
+            }
 
             return webparts;
         }

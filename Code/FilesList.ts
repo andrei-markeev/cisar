@@ -15,6 +15,7 @@ module CSREditor {
 
         public filesPath: string;
         public siteUrl: string = "";
+        public personalView: boolean = false;
 
         constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
             this.loadFileToEditor = loadUrlToEditor;
@@ -44,6 +45,7 @@ module CSREditor {
             this.otherFiles = [];
             this.currentWebPart = null;
             this.currentFile = null;
+            this.personalView = false;
 
             ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
                 if (!errorInfo) {
@@ -79,6 +81,11 @@ module CSREditor {
                     if (errorInfo || jsLinkInfo == "error") {
                         if (errorInfo) console.log(errorInfo);
                         alert("There was an error when getting list of files. Please check console for details.");
+                        return;
+                    }
+
+                    if (jsLinkInfo == "personal") {
+                        this.personalView = true;
                         return;
                     }
 
