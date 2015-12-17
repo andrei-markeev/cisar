@@ -1,7 +1,7 @@
 {
   "name": "Cisar",
   "homepage_url": "https://github.com/andrei-markeev/cisar",
-	"version": "1.2.6",
+	"version": "1.2.7",
 	"description": "SharePoint CSR Live Edit",
 	"icons": {
         "48": "AppIcon48.png",

@@ -769,7 +769,11 @@ var CSREditor;
                 fullPath = _spPageContextInfo.siteServerRelativeUrl + path;
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
-                var files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files();
+                var files;
+                if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0)
+                    files = context.get_web().getFolderByServerRelativeUrl(fullPath).get_files();
+                else
+                    files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files();
                 context.load(files, "Include(Name)");
                 var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                 var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
@@ -785,7 +789,7 @@ var CSREditor;
                     webpartDef.saveWebPartChanges();
                 };
                 var fatalError = function (sender, args) {
-                    console.log('Cisar fatal error when creating ' + fullPath + ': ' + args.get_message());
+                    console.log('Cisar fatal error when creating file ' + fileName + ' at ' + fullPath + ': ' + args.get_message());
                     window["g_Cisar_fileCreationResult"] = "error";
                 };
                 context.executeQueryAsync(function () {
@@ -810,7 +814,7 @@ var CSREditor;
                         var creationInfo = new SP.FileCreationInformation();
                         creationInfo.set_content(new SP.Base64EncodedByteArray());
                         creationInfo.set_url(fileName);
-                        var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files().add(creationInfo);
+                        var file = files.add(creationInfo);
                         context.load(file, 'CheckOutType');
                         setupJsLink(properties);
                         context.executeQueryAsync(function () {
@@ -977,7 +981,12 @@ var CSREditor;
                 var context = SP.ClientContext.get_current();
                 var saveInfo = new SP.FileSaveBinaryInformation();
                 saveInfo.set_content(new SP.Base64EncodedByteArray(content64));
-                var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
+                var files;
+                if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0)
+                    files = context.get_web().getFolderByServerRelativeUrl(path).get_files();
+                else
+                    files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
+                var file = files.getByUrl(fileName);
                 file.checkOut();
                 file.saveBinary(saveInfo);
                 file.checkIn("Checked in by Cisar", SP.CheckinType.minorCheckIn);
@@ -1010,7 +1019,12 @@ var CSREditor;
             var fileName = url.substr(url.lastIndexOf('/') + 1);
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
-                var file = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files().getByUrl(fileName);
+                var files;
+                if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0)
+                    files = context.get_web().getFolderByServerRelativeUrl(path).get_files();
+                else
+                    files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(path).get_files();
+                var file = files.getByUrl(fileName);
                 context.load(file, 'Level', 'CheckOutType');
                 context.executeQueryAsync(function () {
                     if (file.get_level() == SP.FileLevel.draft) {
@@ -1036,7 +1050,12 @@ var CSREditor;
             var fileName = url.substr(url.lastIndexOf('/') + 1);
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
-                context.get_site().get_rootWeb().getFileByServerRelativeUrl(url).recycle();
+                var fileWeb;
+                if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0)
+                    fileWeb = context.get_web();
+                else
+                    fileWeb = context.get_site();
+                fileWeb.getFileByServerRelativeUrl(url).recycle();
                 var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                 var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
                 var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
