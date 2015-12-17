@@ -22,7 +22,7 @@
 
         log(message) { console.log("tsHost: " + message); }
 
-        getCompilationSettings() { return <ts.CompilerOptions>{}; }
+        getCompilationSettings() { return <ts.CompilerOptions>{ removeComments: true, target: ts.ScriptTarget.ES5 }; }
 
         getScriptFileNames() { return ["libs.ts", "live.ts", "csr-editor.ts"]; }
         getScriptVersion(fn) { return (this.scriptVersion[fn] || 0).toString(); }
@@ -91,6 +91,10 @@
             var syntastic = this.tsService.getSyntacticDiagnostics('csr-editor.ts');
             var semantic = this.tsService.getSemanticDiagnostics('csr-editor.ts');
             return syntastic.concat(semantic);
+        }
+
+        public getJs() {
+            return this.tsService.getEmitOutput('csr-editor.ts').outputFiles[0].text;
         }
     }
 

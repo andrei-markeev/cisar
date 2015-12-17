@@ -115,8 +115,8 @@
 
             var url = this.fileName;
             if (url != null) {
+                this.filesList.refreshCSR(url, this.typeScriptService.getJs());
                 var text = cm.getValue();
-                this.filesList.refreshCSR(url, text);
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
             }

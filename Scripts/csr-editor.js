@@ -248,7 +248,7 @@ var CSREditor;
             url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;
-            content = content.replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '').replace(/\r?\n\s*|\r\s*/g, ' ').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            content = content.replace(/\r?\n\s*|\r\s*/g, ' ').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_performCSRRefresh(url, content));
         };
         FilesList.prototype.saveChangesToFile = function (url, content, saveNow) {
@@ -605,8 +605,8 @@ var CSREditor;
             this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
             var url = this.fileName;
             if (url != null) {
+                this.filesList.refreshCSR(url, this.typeScriptService.getJs());
                 var text = cm.getValue();
-                this.filesList.refreshCSR(url, text);
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
             }
@@ -1138,7 +1138,7 @@ var CSREditor;
             this.changes['live.ts'] = [];
         }
         TypeScriptServiceHost.prototype.log = function (message) { console.log("tsHost: " + message); };
-        TypeScriptServiceHost.prototype.getCompilationSettings = function () { return {}; };
+        TypeScriptServiceHost.prototype.getCompilationSettings = function () { return { removeComments: true, target: 1 /* ES5 */ }; };
         TypeScriptServiceHost.prototype.getScriptFileNames = function () { return ["libs.ts", "live.ts", "csr-editor.ts"]; };
         TypeScriptServiceHost.prototype.getScriptVersion = function (fn) { return (this.scriptVersion[fn] || 0).toString(); };
         TypeScriptServiceHost.prototype.getScriptSnapshot = function (fn) {
@@ -1195,6 +1195,9 @@ var CSREditor;
             var syntastic = this.tsService.getSyntacticDiagnostics('csr-editor.ts');
             var semantic = this.tsService.getSemanticDiagnostics('csr-editor.ts');
             return syntastic.concat(semantic);
+        };
+        TypeScriptService.prototype.getJs = function () {
+            return this.tsService.getEmitOutput('csr-editor.ts').outputFiles[0].text;
         };
         return TypeScriptService;
     })();
