@@ -24,9 +24,6 @@ Using
  4. Click plus button in the left panel and create a file.
  5. Start writing customizations
 
-Known problems and important notes
-----------------------------------
-Cisar is rather young. Below listed known bugs, inconveniences and notes. I'm working on improvements, but for now it is how it is:
-
-  1. It is usually a very good idea to disable caching ("Network" tab -> Disable cache checkbox).
-  2. Display Templates and also CSWP customizations aren't supported yet.
+Roadmap
+-------
+ 1. Add support for Display Templates
