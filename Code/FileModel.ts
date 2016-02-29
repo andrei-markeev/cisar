@@ -31,10 +31,7 @@
 
         public removeFile() {
             if (confirm('Sure to move the file to recycle bin and unbind it from the webpart?')) {
-                var url = this.url;
-                url = Utils.cutOffQueryString(url.replace(this.root.siteUrl, '').replace(' ', '%20').toLowerCase());
-                if (url[0] != '/')
-                    url = '/' + url;
+                var url = Utils.toRelative(this.url, this.root.domainPart);
                 this.root.setEditorText(null, '');
                 CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
                 this.root.currentWebPart.files.remove(this);

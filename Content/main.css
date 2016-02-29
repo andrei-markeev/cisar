@@ -17,6 +17,17 @@
     height: auto;
 }
 
+.editor > div.alert {
+    background-color: #f6f6f6;
+    position: absolute;
+    top: 10px;
+    bottom: 0px;
+    border: 0;
+    right: 5px;
+    z-index: 90;
+    text-align: center;
+    padding: 70px 50px;
+}
 .fullscreen .editor > div {
     left: 5px;
 }
@@ -234,3 +245,4 @@
     margin-top: 4px;
     width: 260px;
 }
+

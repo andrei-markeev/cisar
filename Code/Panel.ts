@@ -72,16 +72,34 @@
                 this.setEditorText(url, this.modifiedFilesContent[url]);
             else
                 ChromeIntegration.evalAndWaitForResult(SPActions.getCode_getFileContent(url), SPActions.getCode_checkFileContentRetrieved(), (result, errorInfo) => {
-                    if (errorInfo)
-                        console.log(errorInfo);
-                    else if (result == "error")
-                        alert("There was an error when getting file " + url + ". Please check console for details.");
+                    if (errorInfo || result == "error")
+                    {
+                        this.setEditorText(null, "");
+                        this.filesList.fileError = "There was an error opening file '" + url + "'.<br/>Check console for details.";
+                    }
+                    else if (result == "notFound")
+                    {
+                        var isOtherFile = false;
+                        for (var otherFile of this.filesList.otherFiles) {
+                            if (otherFile.url == url) {
+                                isOtherFile = true;
+                                break;
+                            }
+                        }
+
+                        this.setEditorText(null, "");
+                        if (isOtherFile)
+                            this.filesList.fileError = "File is referenced by the page but was not found: " + url;
+                        else
+                            this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (x) next to the filename.";
+                    }
                     else
                         this.setEditorText(url, result);
                 });
         }
 
         private setEditorText(url: string, text: string, newlyCreated: boolean = false) {
+            this.filesList.fileError = null;
             this.fileName = url;
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);
@@ -119,12 +137,10 @@
                 var text = cm.getValue();
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
+
+                this.intellisenseHelper.scriptChanged(cm, changeObj);
+                this.checkSyntax(cm);
             }
-
-            this.intellisenseHelper.scriptChanged(cm, changeObj);
-
-            this.checkSyntax(cm);
-
         }
 
         private static checkSyntaxTimeout: number = 0;

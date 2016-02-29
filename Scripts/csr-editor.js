@@ -124,10 +124,7 @@ var CSREditor;
         };
         FileModel.prototype.removeFile = function () {
             if (confirm('Sure to move the file to recycle bin and unbind it from the webpart?')) {
-                var url = this.url;
-                url = CSREditor.Utils.cutOffQueryString(url.replace(this.root.siteUrl, '').replace(' ', '%20').toLowerCase());
-                if (url[0] != '/')
-                    url = '/' + url;
+                var url = CSREditor.Utils.toRelative(this.url, this.root.domainPart);
                 this.root.setEditorText(null, '');
                 CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
                 this.root.currentWebPart.files.remove(this);
@@ -143,17 +140,29 @@ var CSREditor;
     var FilesList = (function () {
         function FilesList(loadUrlToEditor, setEditorText) {
             this.changePathDialogShown = false;
+            this.fileError = null;
+            this.pathRelativeToOptions = ['~sitecollection', '~site'];
+            this.pathRelativeToEntered = "";
+            this.filesPathEntered = "";
             this.siteUrl = "";
+            this.webUrl = "";
+            this.siteServerRelativeUrl = "";
+            this.webServerRelativeUrl = "";
+            this.domainPart = "";
             this.personalView = false;
             this.savingQueue = {};
             this.savingProcess = null;
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
             this.filesPath = localStorage['filesPath'] || "/Style Library/";
+            this.pathRelativeTo = localStorage['pathRelativeTo'] || "~sitecollection";
             this.reload();
             ko.track(this);
             ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
                 localStorage['filesPath'] = newValue;
+            });
+            ko.getObservable(this, 'pathRelativeTo').subscribe(function (newValue) {
+                localStorage['pathRelativeTo'] = newValue;
             });
             ko.applyBindings(this);
             document.querySelector('.separator').onclick = function (ev) {
@@ -171,11 +180,19 @@ var CSREditor;
             this.currentWebPart = null;
             this.currentFile = null;
             this.personalView = false;
-            CSREditor.ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", function (result, errorInfo) {
+            this.fileError = null;
+            CSREditor.ChromeIntegration.eval("_spPageContextInfo", function (result, errorInfo) {
                 if (!errorInfo) {
-                    var siteUrl = result.toLowerCase();
-                    _this.siteUrl = siteUrl;
-                    CSREditor.ChromeIntegration.getAllResources(siteUrl, function (urls) {
+                    _this.siteUrl = result.siteAbsoluteUrl.toLowerCase();
+                    _this.webUrl = result.webAbsoluteUrl.toLowerCase();
+                    _this.siteServerRelativeUrl = result.siteServerRelativeUrl.toLowerCase();
+                    _this.webServerRelativeUrl = result.webServerRelativeUrl.toLowerCase();
+                    _this.domainPart = result.siteServerRelativeUrl == '/' ? _this.siteUrl : _this.siteUrl.replace(result.siteServerRelativeUrl, '');
+                    _this.pathRelativeToOptions.removeAll();
+                    _this.pathRelativeToOptions.push('~sitecollection');
+                    if (result.webServerRelativeUrl != result.siteServerRelativeUrl)
+                        _this.pathRelativeToOptions.push('~site');
+                    CSREditor.ChromeIntegration.getAllResources(_this.siteUrl, function (urls) {
                         _this.addOtherFiles(Object.keys(urls));
                         _this.loadWebParts();
                     });
@@ -223,13 +240,16 @@ var CSREditor;
         };
         FilesList.prototype.pathInputKeyDown = function (data, event) {
             var _this = this;
-            return CSREditor.Utils.safeEnterPath(event, this.filesPath, function () {
-                if (_this.filesPath[0] != '/')
-                    _this.filesPath = '/' + _this.filesPath;
-                _this.changePathDialogShown = false;
-                if (_this.filesPath[_this.filesPath.length - 1] != '/')
-                    _this.filesPath = _this.filesPath + '/';
-            }, function () { _this.changePathDialogShown = false; });
+            return CSREditor.Utils.safeEnterPath(event, this.filesPathEntered, this.fixupFilesPath.bind(this), function () { _this.changePathDialogShown = false; });
+        };
+        FilesList.prototype.fixupFilesPath = function () {
+            if (this.filesPathEntered[0] != '/')
+                this.filesPathEntered = '/' + this.filesPathEntered;
+            if (this.filesPathEntered[this.filesPathEntered.length - 1] != '/')
+                this.filesPathEntered = this.filesPathEntered + '/';
+            this.changePathDialogShown = false;
+            this.filesPath = this.filesPathEntered;
+            this.pathRelativeTo = this.pathRelativeToEntered;
         };
         FilesList.prototype.addOtherFiles = function (fileUrls) {
             for (var i = 0; i < fileUrls.length; i++) {
@@ -253,9 +273,7 @@ var CSREditor;
         };
         FilesList.prototype.saveChangesToFile = function (url, content, saveNow) {
             var _this = this;
-            url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
-            if (url[0] != '/')
-                url = '/' + url;
+            url = CSREditor.Utils.toRelative(url, this.domainPart);
             this.savingQueue[url] = { content: content, cooldown: 3 };
             if (saveNow)
                 this.savingQueue[url].cooldown = 1;
@@ -428,7 +446,7 @@ var CSREditor;
             webpart.loading = true;
             if (webpart.newFileName.indexOf('.js') == -1)
                 webpart.newFileName += '.js';
-            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_createFileInSharePoint(filesList.filesPath.toLowerCase(), webpart.newFileName, webpart.id, webpart.ctxKey), CSREditor.SPActions.getCode_checkFileCreated(), function (result, errorInfo) {
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_createFileInSharePoint(filesList.pathRelativeTo + filesList.filesPath.toLowerCase(), webpart.newFileName, webpart.id, webpart.ctxKey), CSREditor.SPActions.getCode_checkFileCreated(), function (result, errorInfo) {
                 webpart.loading = false;
                 if (errorInfo || result == "error") {
                     alert("There was an error when creating the file. Please check console for details.");
@@ -436,7 +454,7 @@ var CSREditor;
                         console.log(errorInfo);
                 }
                 else if (result == "created") {
-                    var fullUrl = (filesList.siteUrl + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
+                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
                     var file = webpart.appendFileToList(fullUrl, true);
                     var templateText = _this.generateTemplate(webpart, filesList.filesPath);
                     filesList.setEditorText(file.url, templateText, true);
@@ -568,10 +586,25 @@ var CSREditor;
                 this.setEditorText(url, this.modifiedFilesContent[url]);
             else
                 CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_getFileContent(url), CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result, errorInfo) {
-                    if (errorInfo)
-                        console.log(errorInfo);
-                    else if (result == "error")
-                        alert("There was an error when getting file " + url + ". Please check console for details.");
+                    if (errorInfo || result == "error") {
+                        _this.setEditorText(null, "");
+                        _this.filesList.fileError = "There was an error opening file '" + url + "'.<br/>Check console for details.";
+                    }
+                    else if (result == "notFound") {
+                        var isOtherFile = false;
+                        for (var _i = 0, _a = _this.filesList.otherFiles; _i < _a.length; _i++) {
+                            var otherFile = _a[_i];
+                            if (otherFile.url == url) {
+                                isOtherFile = true;
+                                break;
+                            }
+                        }
+                        _this.setEditorText(null, "");
+                        if (isOtherFile)
+                            _this.filesList.fileError = "File is referenced by the page but was not found: " + url;
+                        else
+                            _this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (x) next to the filename.";
+                    }
                     else
                         _this.setEditorText(url, result);
                 });
@@ -579,6 +612,7 @@ var CSREditor;
         Panel.prototype.setEditorText = function (url, text, newlyCreated) {
             var _this = this;
             if (newlyCreated === void 0) { newlyCreated = false; }
+            this.filesList.fileError = null;
             this.fileName = url;
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);
@@ -609,9 +643,9 @@ var CSREditor;
                 var text = cm.getValue();
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
+                this.intellisenseHelper.scriptChanged(cm, changeObj);
+                this.checkSyntax(cm);
             }
-            this.intellisenseHelper.scriptChanged(cm, changeObj);
-            this.checkSyntax(cm);
         };
         Panel.prototype.checkSyntax = function (cm) {
             var _this = this;
@@ -764,13 +798,12 @@ var CSREditor;
         };
         SPActions.createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
             path = path.replace('%20', ' ');
-            var fullPath = path;
-            if (_spPageContextInfo.siteServerRelativeUrl != '/')
-                fullPath = _spPageContextInfo.siteServerRelativeUrl + path;
+            var fullPath = path.replace('~sitecollection/', (_spPageContextInfo.siteServerRelativeUrl + '/').replace('//', '/'));
+            fullPath = fullPath.replace('~site/', (_spPageContextInfo.webServerRelativeUrl + '/').replace('//', '/'));
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
                 var files;
-                if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0)
+                if (path.indexOf('~site/') == 0)
                     files = context.get_web().getFolderByServerRelativeUrl(fullPath).get_files();
                 else
                     files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files();
@@ -782,7 +815,7 @@ var CSREditor;
                 var properties = webpart.get_properties();
                 context.load(properties);
                 var setupJsLink = function (properties) {
-                    var jsLinkString = (properties.get_item("JSLink") || "") + "|~sitecollection" + path + fileName;
+                    var jsLinkString = (properties.get_item("JSLink") || "") + "|" + path + fileName;
                     if (jsLinkString[0] == '|')
                         jsLinkString = jsLinkString.substr(1);
                     properties.set_item("JSLink", jsLinkString);
@@ -1054,7 +1087,7 @@ var CSREditor;
                 if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0)
                     fileWeb = context.get_web();
                 else
-                    fileWeb = context.get_site();
+                    fileWeb = context.get_site().get_rootWeb();
                 fileWeb.getFileByServerRelativeUrl(url).recycle();
                 var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                 var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
@@ -1063,17 +1096,30 @@ var CSREditor;
                 var properties = webpart.get_properties();
                 context.load(properties);
                 context.executeQueryAsync(function () {
-                    var oldJsLinkString = properties.get_item("JSLink");
-                    url = url.replace(_spPageContextInfo.siteServerRelativeUrl.toLowerCase(), '');
-                    if (url[0] != '/')
-                        url = '/' + url;
-                    var jsLinkString = properties.get_item("JSLink")
-                        .replace("|~sitecollection" + url, "")
-                        .replace("~sitecollection" + url + "|", "")
-                        .replace("~sitecollection" + url, "")
-                        .replace("|~sitecollection" + url.replace('%20', ' '), "")
-                        .replace("~sitecollection" + url.replace('%20', ' ') + "|", "")
-                        .replace("~sitecollection" + url.replace('%20', ' '), "");
+                    var oldJsLinkString = properties.get_item("JSLink").toLowerCase();
+                    var toCheck = [];
+                    if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0) {
+                        toCheck.push(['~site', _spPageContextInfo.webServerRelativeUrl]);
+                        if (_spPageContextInfo.webServerRelativeUrl == _spPageContextInfo.siteServerRelativeUrl)
+                            toCheck.push(['~sitecollection', _spPageContextInfo.siteServerRelativeUrl]);
+                    }
+                    else
+                        toCheck.push(['~sitecollection', _spPageContextInfo.siteServerRelativeUrl]);
+                    var jsLinkString = ("|" + oldJsLinkString + "|");
+                    for (var _i = 0; _i < toCheck.length; _i++) {
+                        var info = toCheck[_i];
+                        var urlToCheck;
+                        if (info[1] == '/')
+                            urlToCheck = info[0] + url;
+                        else
+                            urlToCheck = url.replace(info[1], info[0]);
+                        jsLinkString = jsLinkString
+                            .replace("|" + urlToCheck + "|", "|")
+                            .replace("|" + urlToCheck.replace('%20', ' ') + "|", "|");
+                    }
+                    jsLinkString = jsLinkString.slice(0, -1);
+                    if (jsLinkString.length > 0 && jsLinkString[0] == '|')
+                        jsLinkString = jsLinkString.substring(1);
                     if (jsLinkString == oldJsLinkString) {
                         console.log('Cisar: ERROR, cannot remove ' + url + ' from ' + jsLinkString + '. Please edit page and remove this file manually.');
                         return;
@@ -1086,7 +1132,7 @@ var CSREditor;
                         console.log('Cisar error when unlinking file ' + fileName + ' from the XLV/LFWP: ' + args.get_message());
                     });
                 }, function (sender, args) {
-                    console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
+                    console.log('Cisar fatal error when recycling file ' + fileName + ': ' + args.get_message());
                 });
             });
         };
@@ -1103,7 +1149,10 @@ var CSREditor;
             r.set_httpVerb("GET");
             r.add_completed(function (executor, args) {
                 if (executor.get_responseAvailable()) {
-                    window["g_Cisar_FileContents"] = executor.get_responseData();
+                    if (executor.get_statusCode() == "404")
+                        window["g_Cisar_FileContents"] = "notFound";
+                    else
+                        window["g_Cisar_FileContents"] = executor.get_responseData();
                 }
                 else {
                     if (executor.get_timedOut() || executor.get_aborted())
@@ -1235,6 +1284,13 @@ var CSREditor;
                 s = s.substr(0, s.indexOf('?'));
             return s;
         };
+        Utils.toRelative = function (url, baseUrl) {
+            url = url.toLowerCase().replace(baseUrl.toLowerCase(), '');
+            url = Utils.cutOffQueryString(url.replace(' ', '%20'));
+            if (url[0] != '/')
+                url = '/' + url;
+            return url;
+        };
         Utils.safeEnterFileName = function (event, value, okCallback, cancelCallback) {
             return Utils.safeEnterValue(event, value, okCallback, cancelCallback, false);
         };
@@ -1322,6 +1378,8 @@ var CSREditor;
             this.adding = true;
         };
         WebPartModel.prototype.displayChangePathDialog = function (data) {
+            this.root.filesPathEntered = this.root.filesPath;
+            this.root.pathRelativeToEntered = this.root.pathRelativeTo;
             this.root.changePathDialogShown = true;
         };
         WebPartModel.prototype.fileNameInputKeyDown = function (data, event) {

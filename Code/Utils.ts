@@ -11,6 +11,13 @@
                 s = s.substr(0, s.indexOf('?'));
             return s;
         }
+        public static toRelative(url: string, baseUrl: string) {
+            url = url.toLowerCase().replace(baseUrl.toLowerCase(), '')
+            url = Utils.cutOffQueryString(url.replace(' ', '%20'));
+            if (url[0] != '/')
+                url = '/' + url;
+            return url;
+        }
 
         public static safeEnterFileName(event, value, okCallback, cancelCallback) {
             return Utils.safeEnterValue(event, value, okCallback, cancelCallback, false);

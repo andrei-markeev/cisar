@@ -139,15 +139,14 @@ module CSREditor {
         }
         private static createFileInSharePoint(path: string, fileName: string, wpId: string, ctxKey: string) {
             path = path.replace('%20', ' ');
-            var fullPath = path;
-            if (_spPageContextInfo.siteServerRelativeUrl != '/')
-                fullPath = _spPageContextInfo.siteServerRelativeUrl + path;
+            var fullPath = path.replace('~sitecollection/', (_spPageContextInfo.siteServerRelativeUrl + '/').replace('//', '/'));
+            fullPath = fullPath.replace('~site/', (_spPageContextInfo.webServerRelativeUrl + '/').replace('//', '/'));
 
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
 
                 var files;
-                if (path.indexOf(_spPageContextInfo.webServerRelativeUrl)==0)
+                if (path.indexOf('~site/')==0)
                     files = context.get_web().getFolderByServerRelativeUrl(fullPath).get_files();
                 else
                     files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files();
@@ -161,7 +160,7 @@ module CSREditor {
                 context.load(properties);
 
                 var setupJsLink = function (properties) {
-                    var jsLinkString = (properties.get_item("JSLink") || "") + "|~sitecollection" + path + fileName;
+                    var jsLinkString = (properties.get_item("JSLink") || "") + "|" + path + fileName;
                     if (jsLinkString[0] == '|')
                         jsLinkString = jsLinkString.substr(1);
                     properties.set_item("JSLink", jsLinkString);
@@ -489,7 +488,7 @@ module CSREditor {
                 if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0)
                     fileWeb = context.get_web();
                 else
-                    fileWeb = context.get_site();
+                    fileWeb = context.get_site().get_rootWeb();
 
                 fileWeb.getFileByServerRelativeUrl(url).recycle();
 
@@ -501,17 +500,35 @@ module CSREditor {
                 context.load(properties);
 
                 context.executeQueryAsync(function () {
-                    var oldJsLinkString = properties.get_item("JSLink");
-                    url = url.replace(_spPageContextInfo.siteServerRelativeUrl.toLowerCase(), '');
-                    if (url[0] != '/')
-                        url = '/' + url;
-                    var jsLinkString = properties.get_item("JSLink")
-                        .replace("|~sitecollection" + url, "")
-                        .replace("~sitecollection" + url + "|", "")
-                        .replace("~sitecollection" + url, "")
-                        .replace("|~sitecollection" + url.replace('%20', ' '), "")
-                        .replace("~sitecollection" + url.replace('%20', ' ') + "|", "")
-                        .replace("~sitecollection" + url.replace('%20', ' '), "");
+                    var oldJsLinkString = properties.get_item("JSLink").toLowerCase();
+
+                    var toCheck = [];
+                    if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0) {
+                        toCheck.push(['~site', _spPageContextInfo.webServerRelativeUrl]);
+                        if (_spPageContextInfo.webServerRelativeUrl == _spPageContextInfo.siteServerRelativeUrl)
+                            toCheck.push(['~sitecollection', _spPageContextInfo.siteServerRelativeUrl]);
+                    }
+                    else
+                        toCheck.push(['~sitecollection', _spPageContextInfo.siteServerRelativeUrl]);
+
+                    var jsLinkString = ("|" + oldJsLinkString + "|");
+
+                    for (var info of toCheck) {
+                        var urlToCheck;
+                        if (info[1] == '/')
+                            urlToCheck = info[0] + url;
+                        else
+                            urlToCheck = url.replace(info[1], info[0]);
+
+                        jsLinkString = jsLinkString
+                            .replace("|" + urlToCheck + "|", "|")
+                            .replace("|" + urlToCheck.replace('%20', ' ') + "|", "|");
+                    }
+
+                    jsLinkString = jsLinkString.slice(0,-1);
+                    if (jsLinkString.length > 0 && jsLinkString[0] == '|')
+                        jsLinkString = jsLinkString.substring(1);
+                    
                     if (jsLinkString == oldJsLinkString) {
                         console.log('Cisar: ERROR, cannot remove ' + url + ' from ' + jsLinkString + '. Please edit page and remove this file manually.');
                         return;
@@ -526,7 +543,7 @@ module CSREditor {
                     });
                 },
                 function (sender, args) {
-                    console.log('Cisar fatal error when saving file ' + fileName + ': ' + args.get_message());
+                    console.log('Cisar fatal error when recycling file ' + fileName + ': ' + args.get_message());
                 });
             });
 
@@ -546,7 +563,10 @@ module CSREditor {
             r.set_httpVerb("GET");
             r.add_completed((executor, args) => {
                 if (executor.get_responseAvailable()) {
-                    window["g_Cisar_FileContents"] = executor.get_responseData();
+                    if (executor.get_statusCode() == "404")
+                        window["g_Cisar_FileContents"] = "notFound";
+                    else
+                        window["g_Cisar_FileContents"] = executor.get_responseData();
                 }
                 else {
                     if (executor.get_timedOut() || executor.get_aborted())

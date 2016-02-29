@@ -4,29 +4,45 @@ module CSREditor {
     export class FilesList {
 
         public changePathDialogShown: boolean = false;
+
         public loading: boolean;
         public currentWebPart: WebPartModel;
         public currentFile: FileModel;
         public webparts: WebPartModel[];
         public otherFiles: FileModel[];
 
+        public fileError: string = null;
+
         public loadFileToEditor: { (url: string): void };
         public setEditorText: { (url: string, text: string, newlyCreated?: boolean): void };
 
+        public pathRelativeToOptions: string[] = ['~sitecollection', '~site'];
+        public pathRelativeTo: string;
+        public pathRelativeToEntered: string = "";
         public filesPath: string;
+        public filesPathEntered: string = "";
         public siteUrl: string = "";
+        public webUrl: string = "";
+        public siteServerRelativeUrl: string = "";
+        public webServerRelativeUrl: string = "";
+        public domainPart: string = "";
+
         public personalView: boolean = false;
 
         constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
             this.loadFileToEditor = loadUrlToEditor;
             this.setEditorText = setEditorText;
             this.filesPath = localStorage['filesPath'] || "/Style Library/";
+            this.pathRelativeTo = localStorage['pathRelativeTo'] || "~sitecollection";
 
             this.reload();
 
             ko.track(this);
             ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
                 localStorage['filesPath'] = newValue;
+            });
+            ko.getObservable(this, 'pathRelativeTo').subscribe(function (newValue) {
+                localStorage['pathRelativeTo'] = newValue;
             });
             ko.applyBindings(this);
 
@@ -46,12 +62,22 @@ module CSREditor {
             this.currentWebPart = null;
             this.currentFile = null;
             this.personalView = false;
+            this.fileError = null;
 
-            ChromeIntegration.eval("_spPageContextInfo.siteAbsoluteUrl", (result, errorInfo) => {
+            ChromeIntegration.eval("_spPageContextInfo", (result, errorInfo) => {
                 if (!errorInfo) {
-                    var siteUrl = result.toLowerCase();
-                    this.siteUrl = siteUrl;
-                    ChromeIntegration.getAllResources(siteUrl, (urls: { [url: string]: number; }) => {
+                    this.siteUrl = result.siteAbsoluteUrl.toLowerCase();
+                    this.webUrl = result.webAbsoluteUrl.toLowerCase();
+                    this.siteServerRelativeUrl = result.siteServerRelativeUrl.toLowerCase();
+                    this.webServerRelativeUrl = result.webServerRelativeUrl.toLowerCase();
+                    this.domainPart = result.siteServerRelativeUrl == '/' ? this.siteUrl : this.siteUrl.replace(result.siteServerRelativeUrl, '');
+
+                    this.pathRelativeToOptions.removeAll();
+                    this.pathRelativeToOptions.push('~sitecollection');
+                    if (result.webServerRelativeUrl != result.siteServerRelativeUrl)
+                        this.pathRelativeToOptions.push('~site');
+
+                    ChromeIntegration.getAllResources(this.siteUrl, (urls: { [url: string]: number; }) => {
                         this.addOtherFiles(Object.keys(urls));
                         this.loadWebParts();
                     });
@@ -111,22 +137,20 @@ module CSREditor {
         }
 
         public pathInputKeyDown(data, event) {
-            return Utils.safeEnterPath(
-                event,
-                this.filesPath,
-                () => {
-                    if (this.filesPath[0] != '/')
-                        this.filesPath = '/' + this.filesPath;
-
-                    this.changePathDialogShown = false;
-
-                    if (this.filesPath[this.filesPath.length - 1] != '/')
-                        this.filesPath = this.filesPath + '/';
-                },
-                () => { this.changePathDialogShown = false; }
-            );
+            return Utils.safeEnterPath(event, this.filesPathEntered, this.fixupFilesPath.bind(this), () => { this.changePathDialogShown = false; });
         }
 
+        private fixupFilesPath() {
+            if (this.filesPathEntered[0] != '/')
+                this.filesPathEntered = '/' + this.filesPathEntered;
+
+            if (this.filesPathEntered[this.filesPathEntered.length - 1] != '/')
+                this.filesPathEntered = this.filesPathEntered + '/';
+
+            this.changePathDialogShown = false;
+            this.filesPath = this.filesPathEntered;
+            this.pathRelativeTo = this.pathRelativeToEntered;
+        }
 
         public addOtherFiles(fileUrls: string[]) {
             for (var i = 0; i < fileUrls.length; i++) {
@@ -160,9 +184,7 @@ module CSREditor {
 
         public saveChangesToFile(url: string, content: string, saveNow?: boolean) {
 
-            url = Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
-            if (url[0] != '/')
-                url = '/' + url;
+            url = Utils.toRelative(url, this.domainPart);
             
             this.savingQueue[url] = { content: content, cooldown: 3 };
             if (saveNow)

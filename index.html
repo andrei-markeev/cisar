@@ -64,7 +64,7 @@
         <div class="files" data-bind="visible: !loading && otherFiles.length > 0">
             <!-- ko foreach: otherFiles -->
                 <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                    <a data-bind="click: removeFile, clickBubble: false, visible: current" class="remove-button" title="delete file and unbind from webpart">╳</a>
+                    <a data-bind="click: removeFile, clickBubble: false, visible: current" class="remove-button" title="delete file">╳</a>
                     <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file">☑</a>
                     <span data-bind="text: shortUrl"></span>
                 </div>
@@ -73,12 +73,17 @@
     </div>
     <div class="separator"></div>
     <div class="editor">
+        <div class="alert" data-bind="html: fileError, visible: fileError"></div>
         <textarea id="editor"></textarea>
     </div>
     <div class="dimmer" data-bind="visible: changePathDialogShown, click: changePathDialogShown = false" style="display: none"></div>
     <div class="change-path-dialog" data-bind="visible: changePathDialogShown" style="display: none">
-        <div>Enter site collection-relative path to library and folder where you want the files created by Cisar to be stored (the path must exist):</div>
-        <input type="text" data-bind="hasFocus: changePathDialogShown, value: filesPath, valueUpdate: 'afterkeydown', event: { keydown: pathInputKeyDown }" />
+        <div>Enter path to library and folder where you want the files created by Cisar to be stored (the path must exist):</div>
+        <div>
+            <select data-bind="options: pathRelativeToOptions, value: pathRelativeToEntered" />
+            <input type="text" data-bind="hasFocus: changePathDialogShown, value: filesPathEntered, valueUpdate: 'afterkeydown', event: { keydown: pathInputKeyDown }" />
+        </div>
+        <div>[Enter] = save</div>
     </div>
 
     <script type="text/javascript" src="Scripts/app.js"></script>

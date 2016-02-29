@@ -58,6 +58,8 @@
         }
 
         public displayChangePathDialog(data) {
+            this.root.filesPathEntered = this.root.filesPath;
+            this.root.pathRelativeToEntered = this.root.pathRelativeTo;
             this.root.changePathDialogShown = true;
         }
 

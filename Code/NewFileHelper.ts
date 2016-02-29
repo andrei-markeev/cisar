@@ -10,7 +10,7 @@
 
             CSREditor.ChromeIntegration.evalAndWaitForResult(
 
-                SPActions.getCode_createFileInSharePoint(filesList.filesPath.toLowerCase(), webpart.newFileName, webpart.id, webpart.ctxKey),
+                SPActions.getCode_createFileInSharePoint(filesList.pathRelativeTo + filesList.filesPath.toLowerCase(), webpart.newFileName, webpart.id, webpart.ctxKey),
                 SPActions.getCode_checkFileCreated(),
 
                 (result, errorInfo) => {
@@ -21,7 +21,7 @@
                             console.log(errorInfo);
                     }
                     else if (result == "created") {
-                        var fullUrl = (filesList.siteUrl + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
+                        var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
                         var file = webpart.appendFileToList(fullUrl, true);
                         var templateText = this.generateTemplate(webpart, filesList.filesPath);
 
