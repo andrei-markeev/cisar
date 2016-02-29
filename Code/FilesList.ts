@@ -173,6 +173,9 @@ module CSREditor {
 
             this.currentFile.published = false;
 
+            if (this.currentFile.paused)
+                return;
+
             url = Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;

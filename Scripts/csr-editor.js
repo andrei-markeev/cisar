@@ -106,6 +106,7 @@ var CSREditor;
             this.justCreated = false;
             this.published = false;
             this.current = false;
+            this.paused = false;
             this.root = root;
             this.wp = wp;
             ko.track(this);
@@ -129,6 +130,9 @@ var CSREditor;
                 CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
                 this.root.currentWebPart.files.remove(this);
             }
+        };
+        FileModel.prototype.pauseOrResume = function () {
+            this.paused = !this.paused;
         };
         return FileModel;
     })();
@@ -265,6 +269,8 @@ var CSREditor;
         };
         FilesList.prototype.refreshCSR = function (url, content) {
             this.currentFile.published = false;
+            if (this.currentFile.paused)
+                return;
             url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
             if (url[0] != '/')
                 url = '/' + url;

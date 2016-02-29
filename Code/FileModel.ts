@@ -14,6 +14,7 @@
         public justCreated: boolean = false;
         public published: boolean = false;
         public current: boolean = false;
+        public paused: boolean = false;
 
         public makeFileCurrent() {
             if (this.root.currentFile)
@@ -36,6 +37,10 @@
                 CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
                 this.root.currentWebPart.files.remove(this);
             }
+        }
+
+        public pauseOrResume() {
+            this.paused = !this.paused;
         }
 
     }

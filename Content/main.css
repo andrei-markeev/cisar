@@ -119,15 +119,9 @@
     text-decoration: none;
 }
 
-.files > div.current a.remove-button {
-    font-size: 8px;
-    color: #6a1617;
-}
-
-.files > div.current a.publish-button {
-    font-size: 16px;
-    margin-right: 6px;
+.files > div.current a {
     color: #777;
+    margin-right: 6px;
 }
 
 .files > div.current.published a.publish-button {

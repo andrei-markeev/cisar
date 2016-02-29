@@ -25,6 +25,7 @@
     <Content Include="Content\bootstrap.min.css" />
     <Content Include="Content\codemirror\codemirror.css" />
     <Content Include="Content\codemirror\show-hint.css" />
+    <Content Include="Content\font-awesome.min.css" />
     <Content Include="Content\loader.gif" />
     <Content Include="Content\main.css" />
     <Content Include="devtools.html" />
@@ -32,6 +33,7 @@
     <Content Include="index.html" />
     <TypeScriptCompile Include="Code\ChromeIntegration.ts" />
     <TypeScriptCompile Include="Code\Panel.ts" />
+    <Content Include="Content\fontawesome-webfont.woff2" />
     <None Include="package.json" />
     <Content Include="Scripts\app.js" />
     <Content Include="Scripts\base64v1_0.js" />
