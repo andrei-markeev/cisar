@@ -33,11 +33,8 @@
         private fileFlags: { [url: string]: number } = {};
 
         public appendFileToList(url: string, justcreated: boolean = false) {
-            url = Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
             if (!this.fileFlags[url]) {
-                var file = new FileModel(this, this.root);
-                file.url = url;
-                file.shortUrl = url.substr(url.lastIndexOf('/') + 1);
+                var file = new FileModel(this, this.root, url);
                 file.justCreated = justcreated;
                 this.files.push(file);
                 if (justcreated) {

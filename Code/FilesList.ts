@@ -123,7 +123,7 @@ module CSREditor {
 
                             if (addedFile != null) {
                                 for (var o = this.otherFiles.length - 1; o >= 0; o--) {
-                                    if (this.otherFiles[o].url == addedFile.url)
+                                    if (this.otherFiles[o].baseUrl == addedFile.url)
                                         this.otherFiles.remove(this.otherFiles[o]);
                                 }
                             }
@@ -154,17 +154,10 @@ module CSREditor {
 
         public addOtherFiles(fileUrls: string[]) {
             for (var i = 0; i < fileUrls.length; i++) {
-                var url = fileUrls[i];
-                url = Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
-                var fileModel = new FileModel(null, this);
-                fileModel.url = url;
-                fileModel.shortUrl = url.substr(url.lastIndexOf('/') + 1);
-                fileModel.justCreated = false;
-                fileModel.current = false;
+                var fileModel = new FileModel(null, this, fileUrls[i]);
                 this.otherFiles.push(fileModel);
             }
         }
-
 
         private savingQueue: { [url: string]: any } = {};
         private savingProcess: any = null;

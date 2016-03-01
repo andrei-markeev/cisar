@@ -70,15 +70,16 @@
         private loadUrlToEditor(url: string) {
             if (url in this.modifiedFilesContent)
                 this.setEditorText(url, this.modifiedFilesContent[url]);
-            else
+            else {
+                // clear content and make readonly while loading
+                this.setEditorText(null, '');
+
                 ChromeIntegration.evalAndWaitForResult(SPActions.getCode_getFileContent(url), SPActions.getCode_checkFileContentRetrieved(), (result, errorInfo) => {
-                    if (errorInfo || result == "error")
-                    {
+                    if (errorInfo || result == "error") {
                         this.setEditorText(null, "");
                         this.filesList.fileError = "There was an error opening file '" + url + "'.<br/>Check console for details.";
                     }
-                    else if (result == "notFound")
-                    {
+                    else if (result == "notFound") {
                         var isOtherFile = false;
                         for (var otherFile of this.filesList.otherFiles) {
                             if (otherFile.url == url) {
@@ -96,11 +97,13 @@
                     else
                         this.setEditorText(url, result);
                 });
+            }
         }
 
         private setEditorText(url: string, text: string, newlyCreated: boolean = false) {
             this.filesList.fileError = null;
             this.fileName = url;
+            this.editorCM.setOption("mode", url != null && url.endsWith(".js") ? "text/typescript" : "text/html");
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);
 
@@ -129,17 +132,24 @@
             if (!changeObj)
                 return;
 
-            this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
+            var isTS = this.editorCM.getOption("mode") == "text/typescript";
+
+            if (isTS)
+                this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
 
             var url = this.fileName;
             if (url != null) {
-                this.filesList.refreshCSR(url, this.typeScriptService.getJs());
+                if (isTS)
+                    this.filesList.refreshCSR(url, this.typeScriptService.getJs());
+
                 var text = cm.getValue();
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
 
-                this.intellisenseHelper.scriptChanged(cm, changeObj);
-                this.checkSyntax(cm);
+                if (isTS) {
+                    this.intellisenseHelper.scriptChanged(cm, changeObj);
+                    this.checkSyntax(cm);
+                }
             }
         }
 

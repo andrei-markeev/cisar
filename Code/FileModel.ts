@@ -1,14 +1,24 @@
 ﻿module CSREditor {
     export class FileModel {
-        constructor(wp: WebPartModel, root: FilesList) {
+        constructor(wp: WebPartModel, root: FilesList, url: string) {
             this.root = root;
             this.wp = wp;
+
+            url = Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
+            if (url.indexOf("_catalogs/masterpage/display%20templates") != -1 && url.endsWith(".js")) {
+                url = url.slice(0, -3) + ".html";
+                this.isDisplayTemplate = true;
+            }
+            this.url = url;
+            this.shortUrl = url.substr(url.lastIndexOf('/') + 1);
+
             ko.track(this);
         }
 
         private root: FilesList;
         private wp: WebPartModel;
 
+        public isDisplayTemplate: boolean = false;
         public url: string = '';
         public shortUrl: string = '';
         public justCreated: boolean = false;

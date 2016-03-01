@@ -100,7 +100,8 @@ var CSREditor;
 var CSREditor;
 (function (CSREditor) {
     var FileModel = (function () {
-        function FileModel(wp, root) {
+        function FileModel(wp, root, url) {
+            this.isDisplayTemplate = false;
             this.url = '';
             this.shortUrl = '';
             this.justCreated = false;
@@ -109,6 +110,13 @@ var CSREditor;
             this.paused = false;
             this.root = root;
             this.wp = wp;
+            url = CSREditor.Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
+            if (url.indexOf("_catalogs/masterpage/display%20templates") != -1 && url.endsWith(".js")) {
+                url = url.slice(0, -3) + ".html";
+                this.isDisplayTemplate = true;
+            }
+            this.url = url;
+            this.shortUrl = url.substr(url.lastIndexOf('/') + 1);
             ko.track(this);
         }
         FileModel.prototype.makeFileCurrent = function () {
@@ -233,7 +241,7 @@ var CSREditor;
                             var addedFile = wpDict[wpqId].appendFileToList(url);
                             if (addedFile != null) {
                                 for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
-                                    if (_this.otherFiles[o].url == addedFile.url)
+                                    if (_this.otherFiles[o].baseUrl == addedFile.url)
                                         _this.otherFiles.remove(_this.otherFiles[o]);
                                 }
                             }
@@ -257,13 +265,7 @@ var CSREditor;
         };
         FilesList.prototype.addOtherFiles = function (fileUrls) {
             for (var i = 0; i < fileUrls.length; i++) {
-                var url = fileUrls[i];
-                url = CSREditor.Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
-                var fileModel = new CSREditor.FileModel(null, this);
-                fileModel.url = url;
-                fileModel.shortUrl = url.substr(url.lastIndexOf('/') + 1);
-                fileModel.justCreated = false;
-                fileModel.current = false;
+                var fileModel = new CSREditor.FileModel(null, this, fileUrls[i]);
                 this.otherFiles.push(fileModel);
             }
         };
@@ -590,7 +592,9 @@ var CSREditor;
             var _this = this;
             if (url in this.modifiedFilesContent)
                 this.setEditorText(url, this.modifiedFilesContent[url]);
-            else
+            else {
+                // clear content and make readonly while loading
+                this.setEditorText(null, '');
                 CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_getFileContent(url), CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result, errorInfo) {
                     if (errorInfo || result == "error") {
                         _this.setEditorText(null, "");
@@ -614,12 +618,14 @@ var CSREditor;
                     else
                         _this.setEditorText(url, result);
                 });
+            }
         };
         Panel.prototype.setEditorText = function (url, text, newlyCreated) {
             var _this = this;
             if (newlyCreated === void 0) { newlyCreated = false; }
             this.filesList.fileError = null;
             this.fileName = url;
+            this.editorCM.setOption("mode", url != null && url.endsWith(".js") ? "text/typescript" : "text/html");
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);
             if (url == null)
@@ -642,15 +648,20 @@ var CSREditor;
         Panel.prototype.processChanges = function (cm, changeObj) {
             if (!changeObj)
                 return;
-            this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
+            var isTS = this.editorCM.getOption("mode") == "text/typescript";
+            if (isTS)
+                this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
             var url = this.fileName;
             if (url != null) {
-                this.filesList.refreshCSR(url, this.typeScriptService.getJs());
+                if (isTS)
+                    this.filesList.refreshCSR(url, this.typeScriptService.getJs());
                 var text = cm.getValue();
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
-                this.intellisenseHelper.scriptChanged(cm, changeObj);
-                this.checkSyntax(cm);
+                if (isTS) {
+                    this.intellisenseHelper.scriptChanged(cm, changeObj);
+                    this.checkSyntax(cm);
+                }
             }
         };
         Panel.prototype.checkSyntax = function (cm) {
@@ -1426,11 +1437,8 @@ var CSREditor;
         }
         WebPartModel.prototype.appendFileToList = function (url, justcreated) {
             if (justcreated === void 0) { justcreated = false; }
-            url = CSREditor.Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
             if (!this.fileFlags[url]) {
-                var file = new CSREditor.FileModel(this, this.root);
-                file.url = url;
-                file.shortUrl = url.substr(url.lastIndexOf('/') + 1);
+                var file = new CSREditor.FileModel(this, this.root, url);
                 file.justCreated = justcreated;
                 this.files.push(file);
                 if (justcreated) {
