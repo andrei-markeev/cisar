@@ -474,6 +474,78 @@ module CSREditor {
             });
         }
 
+        public static getCode_getJSLink(wpId: string) {
+            return "(" + SPActions.getJSLink + ")('" + wpId + "');";
+        }
+        private static getJSLink(wpId: string) {
+            delete window["g_Cisar_JSLink"];
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                var properties = webpart.get_properties();
+                context.load(properties);
+
+                context.executeQueryAsync(function () {
+                    window["g_Cisar_JSLink"] = properties.get_item("JSLink").toLowerCase();
+                },
+                function () {
+                    window["g_Cisar_JSLink"] = 'error';
+                });
+            });
+        }
+        public static getCode_checkJSLinkRetrieved() {
+            return "(" + SPActions.checkJSLinkRetrieved + ")();";
+        }
+        private static checkJSLinkRetrieved() {
+            if (window["g_Cisar_JSLink"]) {
+                var result = window["g_Cisar_JSLink"];
+                delete window["g_Cisar_JSLink"];
+                return result;
+            }
+            else
+                return "wait";
+        }
+
+
+        public static getCode_setJSLink(wpId: string, value: string) {
+            return "(" + SPActions.setJSLink + ")('" + wpId + "','" + value + "');";
+        }
+        private static setJSLink(wpId: string, value: string) {
+            delete window["g_Cisar_JSLinkSaveResult"];
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                webpart.get_properties().set_item("JSLink", value);
+                webpartDef.saveWebPartChanges();
+
+                context.executeQueryAsync(function () {
+                    window["g_Cisar_JSLinkSaveResult"] = 'success';
+                },
+                function (sender, args) {
+                    window["g_Cisar_JSLinkSaveResult"] = 'error';
+                    console.log('Error when saving JSLink: ' + args.get_message());
+                });
+            });
+        }
+        public static getCode_checkJSLinkSaved() {
+            return "(" + SPActions.checkJSLinkSaved + ")();";
+        }
+        private static checkJSLinkSaved() {
+            if (window["g_Cisar_JSLinkSaveResult"]) {
+                var result = window["g_Cisar_JSLinkSaveResult"];
+                delete window["g_Cisar_JSLinkSaveResult"];
+                return result;
+            }
+            else
+                return "wait";
+        }
+
         public static getCode_removeFileFromSharePoint(url: string, wpId: string) {
             return "(" + SPActions.removeFileFromSharePoint + ")('" + url + "', '" + wpId + "');";
         }

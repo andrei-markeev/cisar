@@ -39,8 +39,15 @@
             </div>
         <!-- /ko -->
         <!-- ko foreach: webparts -->
-            <div class="header"><span data-bind="text: title"></span></div>
-            <div class="files">
+            <div class="header"><span data-bind="text: title"></span> <a data-bind="click: displayEditJSLinkUI, visible: loading == false && editJSLinkMode == false" title="Edit JSLink"><i class="fa fa-pencil"></i></a></div>
+            <div class="files" data-bind="visible: editJSLinkMode == true">
+                <div>
+                    <textarea data-bind="value: jsLink" rows="10"></textarea>
+                    <button data-bind="click: saveJSLink"><i class="fa fa-floppy-o"></i> Save</button>
+                    <button data-bind="click: cancelJSLinkEdit">Cancel</button>
+                </div>
+            </div>
+            <div class="files" data-bind="visible: editJSLinkMode == false">
                 <div class="add" data-bind="click: displayAddNewFileUI, css: { adding: adding }">
                     <span>+</span>
                     <div class="hint" data-bind="visible: !adding && files.length == 0">Click here to add a file to this webpart</div>
@@ -52,27 +59,29 @@
                     </div>
                 </div>
                 <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
+                <!-- ko if: loading == false -->
                 <!-- ko foreach: files -->
-                    <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                        <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin and unbind from webpart"><i class="fa fa-trash-o"></i></a>
-                        <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
-                        <a data-bind="click: pauseOrResume, clickBubble: false, visible: current" title="pause/resume live CSR preview"><i class="fa" data-bind="css: { 'fa-pause': paused == false, 'fa-play': paused == true }"></i></a>
-                        <span data-bind="text: shortUrl"></span>
-                    </div>
+                <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                    <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin and unbind from webpart"><i class="fa fa-trash-o"></i></a>
+                    <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
+                    <a data-bind="click: pauseOrResume, clickBubble: false, visible: current" title="pause/resume live CSR preview"><i class="fa" data-bind="css: { 'fa-pause': paused == false, 'fa-play': paused == true }"></i></a>
+                    <span data-bind="text: shortUrl"></span>
+                </div>
+                <!-- /ko -->
                 <!-- /ko -->
             </div>
-        <!-- /ko -->
-        <div class="header other-files" data-bind="visible: !loading && otherFiles.length > 0">Other files on page</div>
-        <div class="files" data-bind="visible: !loading && otherFiles.length > 0">
-            <!-- ko foreach: otherFiles -->
+            <!-- /ko -->
+            <div class="header other-files" data-bind="visible: !loading && otherFiles.length > 0">Other files on page</div>
+            <div class="files" data-bind="visible: !loading && otherFiles.length > 0">
+                <!-- ko foreach: otherFiles -->
                 <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
                     <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
                     <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
                     <span data-bind="text: shortUrl"></span>
                 </div>
-            <!-- /ko -->
+                <!-- /ko -->
+            </div>
         </div>
-    </div>
     <div class="separator"></div>
     <div class="editor">
         <div class="alert" data-bind="html: fileError, visible: fileError"></div>

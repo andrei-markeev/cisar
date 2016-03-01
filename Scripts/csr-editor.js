@@ -609,7 +609,7 @@ var CSREditor;
                         if (isOtherFile)
                             _this.filesList.fileError = "File is referenced by the page but was not found: " + url;
                         else
-                            _this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (x) next to the filename.";
+                            _this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (<i class='fa fa-trash-o'></i>) next to the filename.";
                     }
                     else
                         _this.setEditorText(url, result);
@@ -1081,6 +1081,71 @@ var CSREditor;
                 });
             });
         };
+        SPActions.getCode_getJSLink = function (wpId) {
+            return "(" + SPActions.getJSLink + ")('" + wpId + "');";
+        };
+        SPActions.getJSLink = function (wpId) {
+            delete window["g_Cisar_JSLink"];
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                var properties = webpart.get_properties();
+                context.load(properties);
+                context.executeQueryAsync(function () {
+                    window["g_Cisar_JSLink"] = properties.get_item("JSLink").toLowerCase();
+                }, function () {
+                    window["g_Cisar_JSLink"] = 'error';
+                });
+            });
+        };
+        SPActions.getCode_checkJSLinkRetrieved = function () {
+            return "(" + SPActions.checkJSLinkRetrieved + ")();";
+        };
+        SPActions.checkJSLinkRetrieved = function () {
+            if (window["g_Cisar_JSLink"]) {
+                var result = window["g_Cisar_JSLink"];
+                delete window["g_Cisar_JSLink"];
+                return result;
+            }
+            else
+                return "wait";
+        };
+        SPActions.getCode_setJSLink = function (wpId, value) {
+            return "(" + SPActions.setJSLink + ")('" + wpId + "','" + value + "');";
+        };
+        SPActions.setJSLink = function (wpId, value) {
+            delete window["g_Cisar_JSLinkSaveResult"];
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                webpart.get_properties().set_item("JSLink", value);
+                webpartDef.saveWebPartChanges();
+                context.executeQueryAsync(function () {
+                    window["g_Cisar_JSLinkSaveResult"] = 'success';
+                }, function (sender, args) {
+                    window["g_Cisar_JSLinkSaveResult"] = 'error';
+                    console.log('Error when saving JSLink: ' + args.get_message());
+                });
+            });
+        };
+        SPActions.getCode_checkJSLinkSaved = function () {
+            return "(" + SPActions.checkJSLinkSaved + ")();";
+        };
+        SPActions.checkJSLinkSaved = function () {
+            if (window["g_Cisar_JSLinkSaveResult"]) {
+                var result = window["g_Cisar_JSLinkSaveResult"];
+                delete window["g_Cisar_JSLinkSaveResult"];
+                return result;
+            }
+            else
+                return "wait";
+        };
         SPActions.getCode_removeFileFromSharePoint = function (url, wpId) {
             return "(" + SPActions.removeFileFromSharePoint + ")('" + url + "', '" + wpId + "');";
         };
@@ -1346,6 +1411,8 @@ var CSREditor;
             this.adding = false;
             this.loading = false;
             this.newFileName = '';
+            this.jsLink = '';
+            this.editJSLinkMode = false;
             this.fileFlags = {};
             this.root = root;
             this.title = info.title;
@@ -1387,6 +1454,49 @@ var CSREditor;
             this.root.filesPathEntered = this.root.filesPath;
             this.root.pathRelativeToEntered = this.root.pathRelativeTo;
             this.root.changePathDialogShown = true;
+        };
+        WebPartModel.prototype.displayEditJSLinkUI = function (data) {
+            var _this = this;
+            for (var _i = 0, _a = this.files; _i < _a.length; _i++) {
+                var f = _a[_i];
+                if (f.current) {
+                    f.current = false;
+                    this.root.currentFile = null;
+                    this.root.currentWebPart = null;
+                    this.root.setEditorText(null, '');
+                    break;
+                }
+            }
+            this.loading = true;
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_getJSLink(this.id), CSREditor.SPActions.getCode_checkJSLinkRetrieved(), function (result, errorInfo) {
+                _this.loading = false;
+                if (errorInfo)
+                    console.log(errorInfo);
+                if (errorInfo || result == 'error') {
+                    alert('Error occured when fetching the JSLink data.');
+                    return;
+                }
+                _this.jsLink = result;
+                _this.editJSLinkMode = true;
+            });
+        };
+        WebPartModel.prototype.saveJSLink = function () {
+            var _this = this;
+            this.editJSLinkMode = false;
+            this.loading = true;
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_setJSLink(this.id, this.jsLink), CSREditor.SPActions.getCode_checkJSLinkSaved(), function (result, errorInfo) {
+                _this.loading = false;
+                if (errorInfo)
+                    console.log(errorInfo);
+                if (errorInfo || result == 'error') {
+                    alert('Error occured when saving the JSLink data! Check console for details.');
+                    return;
+                }
+                _this.root.reload();
+            });
+        };
+        WebPartModel.prototype.cancelJSLinkEdit = function () {
+            this.editJSLinkMode = false;
         };
         WebPartModel.prototype.fileNameInputKeyDown = function (data, event) {
             var _this = this;

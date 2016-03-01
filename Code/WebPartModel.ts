@@ -27,6 +27,8 @@
         public adding: boolean = false;
         public loading: boolean = false;
         public newFileName: string = '';
+        public jsLink: string = '';
+        public editJSLinkMode: boolean = false;
 
         private fileFlags: { [url: string]: number } = {};
 
@@ -61,6 +63,54 @@
             this.root.filesPathEntered = this.root.filesPath;
             this.root.pathRelativeToEntered = this.root.pathRelativeTo;
             this.root.changePathDialogShown = true;
+        }
+
+        public displayEditJSLinkUI(data) {
+            for (var f of this.files)
+                if (f.current) {
+                    f.current = false;
+                    this.root.currentFile = null;
+                    this.root.currentWebPart = null;
+                    this.root.setEditorText(null, '');
+                    break;
+                }
+            this.loading = true;
+            ChromeIntegration.evalAndWaitForResult(SPActions.getCode_getJSLink(this.id), SPActions.getCode_checkJSLinkRetrieved(), (result, errorInfo) => {
+                this.loading = false;
+
+                if (errorInfo)
+                    console.log(errorInfo);
+
+                if (errorInfo || result == 'error') {
+                    alert('Error occured when fetching the JSLink data.');
+                    return;
+                }
+
+                this.jsLink = result;
+                this.editJSLinkMode = true;
+            });
+        }
+
+        public saveJSLink() {
+            this.editJSLinkMode = false;
+            this.loading = true;
+            ChromeIntegration.evalAndWaitForResult(SPActions.getCode_setJSLink(this.id, this.jsLink), SPActions.getCode_checkJSLinkSaved(), (result, errorInfo) => {
+                this.loading = false;
+
+                if (errorInfo)
+                    console.log(errorInfo);
+
+                if (errorInfo || result == 'error') {
+                    alert('Error occured when saving the JSLink data! Check console for details.');
+                    return;
+                }
+
+                this.root.reload();
+            });
+        }
+
+        public cancelJSLinkEdit() {
+            this.editJSLinkMode = false;
         }
 
         public fileNameInputKeyDown(data, event) {

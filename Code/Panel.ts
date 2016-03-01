@@ -91,7 +91,7 @@
                         if (isOtherFile)
                             this.filesList.fileError = "File is referenced by the page but was not found: " + url;
                         else
-                            this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (x) next to the filename.";
+                            this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (<i class='fa fa-trash-o'></i>) next to the filename.";
                     }
                     else
                         this.setEditorText(url, result);

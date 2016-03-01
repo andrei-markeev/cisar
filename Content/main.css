@@ -76,6 +76,9 @@
 .header.other-files {
     font-size: 12px;
 }
+.header > a {
+    color: #777;
+}
 
 .files {
     padding: 2px 1px;
