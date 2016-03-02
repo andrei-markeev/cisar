@@ -1514,4 +1514,3 @@ var CSREditor;
     })();
     CSREditor.WebPartModel = WebPartModel;
 })(CSREditor || (CSREditor = {}));
-//# sourceMappingURL=csr-editor.js.map

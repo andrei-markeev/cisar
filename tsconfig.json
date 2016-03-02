@@ -1,4 +1,26 @@
 {
+    "files": [
+        "Scripts/typings/bootstrap/bootstrap.d.ts",
+        "Scripts/typings/chrome/chrome.d.ts",
+        "Scripts/typings/codemirror/codemirror.d.ts",
+        "Scripts/typings/jquery/jquery.d.ts",
+        "Scripts/typings/knockout/knockout.d.ts",
+        "Scripts/typings/knockout.es5/knockout.es5.d.ts",
+        "Scripts/typings/microsoft-ajax/microsoft.ajax.d.ts",
+        "Scripts/typings/sharepoint/SharePoint.d.ts",
+        "Scripts/typings/typescript-services/typescriptServices.d.ts",
+        "Code/ChromeIntegration.ts",
+        "Code/FileModel.ts",
+        "Code/FilesList.ts",
+        "Code/IntellisenseHelper.ts",
+        "Code/IWebPartInfoFromSP.ts",
+        "Code/NewFileHelper.ts",
+        "Code/Panel.ts",
+        "Code/SPActions.ts",
+        "Code/TypeScriptService.ts",
+        "Code/Utils.ts",
+        "Code/WebPartModel.ts"
+    ],
     "compilerOptions": {
         "out": "Scripts/csr-editor.js"
     }
