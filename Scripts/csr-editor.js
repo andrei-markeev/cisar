@@ -241,7 +241,7 @@ var CSREditor;
                             var addedFile = wpDict[wpqId].appendFileToList(url);
                             if (addedFile != null) {
                                 for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
-                                    if (_this.otherFiles[o].baseUrl == addedFile.url)
+                                    if (_this.otherFiles[o].url == addedFile.url)
                                         _this.otherFiles.remove(_this.otherFiles[o]);
                                 }
                             }

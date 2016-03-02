@@ -123,7 +123,7 @@ module CSREditor {
 
                             if (addedFile != null) {
                                 for (var o = this.otherFiles.length - 1; o >= 0; o--) {
-                                    if (this.otherFiles[o].baseUrl == addedFile.url)
+                                    if (this.otherFiles[o].url == addedFile.url)
                                         this.otherFiles.remove(this.otherFiles[o]);
                                 }
                             }
