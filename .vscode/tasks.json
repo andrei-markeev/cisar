@@ -4,5 +4,6 @@
 	"isShellCommand": true,
 	"showOutput": "silent",
 	"args": [],
-    "problemMatcher": "$tsc"
+    "problemMatcher": "$tsc",
+    "isWatching": true
 }

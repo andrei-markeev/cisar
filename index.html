@@ -39,6 +39,9 @@
         <!-- ko if: !personalView && webparts.length == 0 -->
             <div class="hint">
                 No CSR-enabled webparts found on the page.
+                <div>
+                    <button data-bind="click: reload"><i class="fa fa-refresh"></i> Reload</button>
+                </div>
             </div>
         <!-- /ko -->
         <!-- ko foreach: webparts -->
@@ -74,6 +77,16 @@
                 <!-- /ko -->
             </div>
             <!-- /ko -->
+            <div class="header" data-bind="visible: !loading && displayTemplates.length > 0">Display templates</div>
+            <div class="files" data-bind="visible: !loading && displayTemplates.length > 0">
+                <!-- ko foreach: displayTemplates -->
+                <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                    <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
+                    <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
+                    <span data-bind="text: shortUrl"></span>
+                </div>
+                <!-- /ko -->
+            </div>
             <div class="header other-files" data-bind="visible: !loading && otherFiles.length > 0">Other files on page</div>
             <div class="files" data-bind="visible: !loading && otherFiles.length > 0">
                 <!-- ko foreach: otherFiles -->

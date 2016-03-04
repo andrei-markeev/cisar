@@ -97,6 +97,228 @@ var CSREditor;
     })();
     CSREditor.ChromeIntegration = ChromeIntegration;
 })(CSREditor || (CSREditor = {}));
+var DisplayTemplateTokenSyntax = (function () {
+    function DisplayTemplateTokenSyntax() {
+    }
+    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenLogicCodeBegin", {
+        get: function () { return "<!--#_"; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenLogicCodeEnd", {
+        get: function () { return "_#-->"; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenRenderExpressionBegin", {
+        get: function () { return "_#="; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenRenderExpressionEnd", {
+        get: function () { return "=#_"; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenRegexPreserveLogicScriptQuotes", {
+        get: function () { return "\"(?<=<!--#_([^#]*))'\""; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenRegexPreserveRenderingScriptQuotes", {
+        get: function () { return "\"(?<=_#=([^#]*))'\""; },
+        enumerable: true,
+        configurable: true
+    });
+    return DisplayTemplateTokenSyntax;
+})();
+var TransformState;
+(function (TransformState) {
+    TransformState[TransformState["HtmlBlock"] = 0] = "HtmlBlock";
+    TransformState[TransformState["LogicBlock"] = 1] = "LogicBlock";
+    TransformState[TransformState["RenderExpression"] = 2] = "RenderExpression";
+})(TransformState || (TransformState = {}));
+var TransformIndexType;
+(function (TransformIndexType) {
+    TransformIndexType[TransformIndexType["NoTokenFound"] = 0] = "NoTokenFound";
+    TransformIndexType[TransformIndexType["ContentStart"] = 1] = "ContentStart";
+    TransformIndexType[TransformIndexType["ContentEnd"] = 2] = "ContentEnd";
+    TransformIndexType[TransformIndexType["CodeBeginToken"] = 3] = "CodeBeginToken";
+    TransformIndexType[TransformIndexType["CodeEndToken"] = 4] = "CodeEndToken";
+    TransformIndexType[TransformIndexType["RenderBeginToken"] = 5] = "RenderBeginToken";
+    TransformIndexType[TransformIndexType["RenderEndToken"] = 6] = "RenderEndToken";
+})(TransformIndexType || (TransformIndexType = {}));
+var DisplayTemplateTransformer = (function () {
+    function DisplayTemplateTransformer() {
+        this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
+        this.CurrentLineNumber = 0;
+    }
+    DisplayTemplateTransformer.prototype.Transform = function (htmlToTransform, templateName, uniqueId, templateInfo) {
+        var jsContent = "";
+        jsContent += "window.DisplayTemplate_" + uniqueId + " = function(ctx) {\n";
+        jsContent += "  var ms_outHtml=[];\n";
+        jsContent += "  var cachePreviousTemplateData = ctx['DisplayTemplateData'];\n";
+        jsContent += "  ctx['DisplayTemplateData'] = new Object();\n";
+        jsContent += "  DisplayTemplate_" + uniqueId + ".DisplayTemplateData = ctx['DisplayTemplateData'];\n";
+        jsContent += "  ctx['DisplayTemplateData']['TemplateUrl']='" + templateInfo.TemplateUrl + "';\n";
+        jsContent += "  ctx['DisplayTemplateData']['TemplateType']='" + templateInfo.TemplateType + "';\n";
+        jsContent += "  ctx['DisplayTemplateData']['TargetControlType']=" + JSON.stringify(templateInfo.TargetControlType) + ";\n";
+        jsContent += "  this.DisplayTemplateData = ctx['DisplayTemplateData'];\n";
+        jsContent += "\n";
+        if (templateInfo.TemplateType == "Filter") {
+            jsContent += "  ctx['DisplayTemplateData']['CompatibleSearchDataTypes']=" + JSON.stringify(templateInfo.CompatibleSearchDataTypes) + ";\n";
+            jsContent += "  ctx['DisplayTemplateData']['CompatibleManagedProperties']=" + JSON.stringify(templateInfo.CompatibleManagedProperties) + ";\n";
+        }
+        if (templateInfo.TemplateType == "Item") {
+            jsContent += "  ctx['DisplayTemplateData']['ManagedPropertyMapping']=" + JSON.stringify(templateInfo.ManagedPropertyMapping) + ";\n";
+            jsContent += "  var cachePreviousItemValuesFunction = ctx['ItemValues'];\n";
+            jsContent += "  ctx['ItemValues'] = function(slotOrPropName) {\n";
+            jsContent += "    return Srch.ValueInfo.getCachedCtxItemValue(ctx, slotOrPropName)\n";
+            jsContent += "  };\n";
+        }
+        // ---
+        jsContent += "\n";
+        jsContent += "  ms_outHtml.push(''";
+        var htmlLines = htmlToTransform.split('\n');
+        while (htmlLines.length > 0) {
+            this.CurrentLine = htmlLines.shift();
+            this.ResetIndexes();
+            var length = -1;
+            do {
+                this.ProcessLineSegment();
+                var segmentContent = this.CurrentLine.substr(this.Indexes[TransformIndexType.ContentStart], this.Indexes[TransformIndexType.ContentEnd] - this.Indexes[TransformIndexType.ContentStart]);
+                if (this.CurrentState == TransformState.LogicBlock && this.PreviousState == TransformState.HtmlBlock)
+                    jsContent += ");";
+                else if (this.CurrentState == TransformState.HtmlBlock && this.PreviousState == TransformState.LogicBlock)
+                    jsContent += "  ms_outHtml.push(";
+                else if (this.CurrentState != TransformState.LogicBlock)
+                    jsContent += ",";
+                switch (this.CurrentState) {
+                    case TransformState.HtmlBlock:
+                        jsContent += "'" + this.EscapeHtmlSegment(segmentContent) + "'";
+                        break;
+                    case TransformState.LogicBlock:
+                        jsContent += segmentContent;
+                        break;
+                    case TransformState.RenderExpression:
+                        var str = segmentContent.replace("<![CDATA[", '').replace("]]>", '');
+                        if (length != -1 && this.CurrentLine.substr(0, length).trim().match(/=\"$/))
+                            str = str.replace("&quot;", "\"");
+                        jsContent += str;
+                        break;
+                }
+                this.Indexes[TransformIndexType.ContentStart] = this.Indexes[TransformIndexType.ContentEnd];
+                this.PreviousState = this.CurrentState;
+                if (this.Indexes[TransformIndexType.ContentEnd] <= length)
+                    throw "ParseProgressException";
+                else
+                    length = this.Indexes[TransformIndexType.ContentEnd];
+            } while (this.Indexes[TransformIndexType.ContentEnd] < this.CurrentLine.length);
+            jsContent += "\n";
+        }
+        jsContent += ");\n";
+        if (templateInfo.TemplateType == "Item")
+            jsContent += "  ctx['ItemValues'] = cachePreviousItemValuesFunction;\n";
+        jsContent += "  ctx['DisplayTemplateData'] = cachePreviousTemplateData;\n";
+        jsContent += "  return ms_outHtml.join('');\n";
+        jsContent += "}\n";
+        return jsContent;
+    };
+    DisplayTemplateTransformer.prototype.ProcessLineSegment = function () {
+        this.FindLineTokenIndices();
+        this.FindSegmentTypeAndContent();
+        switch (this.CurrentState) {
+            case TransformState.HtmlBlock:
+                //this.ValidateHtmlBlock();
+                break;
+            case TransformState.LogicBlock:
+                //this.ValidateLogicBlock();
+                break;
+            case TransformState.RenderExpression:
+                //this.ValidateRenderingExpression();
+                break;
+        }
+    };
+    DisplayTemplateTransformer.prototype.FindSegmentTypeAndContent = function () {
+        var flag = false;
+        switch (this.CurrentState) {
+            case TransformState.HtmlBlock:
+                if (this.Indexes[TransformIndexType.CodeBeginToken] == this.Indexes[TransformIndexType.ContentStart]) {
+                    flag = true;
+                    this.PreviousState = this.CurrentState;
+                    this.CurrentState = TransformState.LogicBlock;
+                    this.Indexes[TransformIndexType.ContentStart] = this.Indexes[TransformIndexType.ContentStart] + DisplayTemplateTokenSyntax.TokenLogicCodeBegin.length;
+                }
+                else if (this.Indexes[TransformIndexType.RenderBeginToken] == this.Indexes[TransformIndexType.ContentStart]) {
+                    flag = true;
+                    this.PreviousState = this.CurrentState;
+                    this.CurrentState = TransformState.RenderExpression;
+                    this.Indexes[TransformIndexType.ContentStart] = this.Indexes[TransformIndexType.ContentStart] + DisplayTemplateTokenSyntax.TokenRenderExpressionBegin.length;
+                }
+                break;
+            case TransformState.LogicBlock:
+                if (this.Indexes[TransformIndexType.CodeEndToken] == this.Indexes[TransformIndexType.ContentStart]) {
+                    flag = true;
+                    this.PreviousState = this.CurrentState;
+                    this.CurrentState = TransformState.HtmlBlock;
+                    this.Indexes[TransformIndexType.ContentStart] = this.Indexes[TransformIndexType.ContentStart] + DisplayTemplateTokenSyntax.TokenLogicCodeEnd.length;
+                }
+                break;
+            case TransformState.RenderExpression:
+                if (this.Indexes[TransformIndexType.RenderEndToken] == this.Indexes[TransformIndexType.ContentStart]) {
+                    flag = true;
+                    this.PreviousState = this.CurrentState;
+                    this.CurrentState = TransformState.HtmlBlock;
+                    this.Indexes[TransformIndexType.ContentStart] = this.Indexes[TransformIndexType.ContentStart] + DisplayTemplateTokenSyntax.TokenRenderExpressionEnd.length;
+                }
+                break;
+        }
+        if (flag) {
+            console.log("FindSegmentTypeAndContent: State changed as a shortcut to " + this.CurrentState + " with segment content now starting at " + this.Indexes[TransformIndexType.ContentStart]);
+            this.FindLineTokenIndices();
+        }
+        this.FindNextTokenTypeAndContentEnd();
+    };
+    DisplayTemplateTransformer.prototype.FindLineTokenIndices = function () {
+        this.Indexes[TransformIndexType.CodeBeginToken] = this.CurrentLine.indexOf(DisplayTemplateTokenSyntax.TokenLogicCodeBegin, this.Indexes[TransformIndexType.ContentStart]);
+        this.Indexes[TransformIndexType.CodeEndToken] = this.CurrentLine.indexOf(DisplayTemplateTokenSyntax.TokenLogicCodeEnd, this.Indexes[TransformIndexType.ContentStart]);
+        this.Indexes[TransformIndexType.RenderBeginToken] = this.CurrentLine.indexOf(DisplayTemplateTokenSyntax.TokenRenderExpressionBegin, this.Indexes[TransformIndexType.ContentStart]);
+        this.Indexes[TransformIndexType.RenderEndToken] = this.CurrentLine.indexOf(DisplayTemplateTokenSyntax.TokenRenderExpressionEnd, this.Indexes[TransformIndexType.ContentStart]);
+    };
+    DisplayTemplateTransformer.prototype.FindNextTokenTypeAndContentEnd = function () {
+        var transformIndexType = TransformIndexType.NoTokenFound;
+        var dictionary = {};
+        for (var _i = 0, _a = DisplayTemplateTransformer.tokenIndices; _i < _a.length; _i++) {
+            var index = _a[_i];
+            if (!(this.Indexes[index] in dictionary))
+                dictionary[this.Indexes[index]] = index;
+        }
+        var sortedSet = Object.keys(dictionary).map(function (k) { return +k; }).sort(function (a, b) { return a - b; });
+        if (sortedSet.length > 1) {
+            var index = +sortedSet.filter(function (n) { return n > -1; })[0];
+            transformIndexType = dictionary[index];
+            this.Indexes[TransformIndexType.ContentEnd] = index;
+        }
+        else
+            this.Indexes[TransformIndexType.ContentEnd] = this.CurrentLine.length;
+        this.NextTokenType = transformIndexType;
+    };
+    DisplayTemplateTransformer.prototype.EscapeHtmlSegment = function (s) {
+        return s.replace(/\\/g, '\\\\').replace(/'/g, '\\\'');
+    };
+    DisplayTemplateTransformer.prototype.ResetIndexes = function () {
+        this.Indexes = {};
+        for (var _i = 0, _a = Object.keys(TransformIndexType).map(function (v) { return parseInt(v, 10); }).filter(function (v) { return !isNaN(v); }); _i < _a.length; _i++) {
+            var index = _a[_i];
+            this.Indexes[index] = index != TransformIndexType.ContentStart ? -1 : 0;
+        }
+    };
+    DisplayTemplateTransformer.tokenIndices = [
+        TransformIndexType.CodeBeginToken, TransformIndexType.CodeEndToken,
+        TransformIndexType.RenderBeginToken, TransformIndexType.RenderEndToken
+    ];
+    return DisplayTemplateTransformer;
+})();
 var CSREditor;
 (function (CSREditor) {
     var FileModel = (function () {
@@ -189,6 +411,7 @@ var CSREditor;
             this.loading = true;
             this.webparts = [];
             this.otherFiles = [];
+            this.displayTemplates = [];
             this.currentWebPart = null;
             this.currentFile = null;
             this.personalView = false;
@@ -219,10 +442,26 @@ var CSREditor;
                     return;
                 }
                 var wpDict = {};
-                for (var i = 0; i < result.length; i++) {
-                    var wp = new CSREditor.WebPartModel(_this, result[i]);
+                for (var i = 0; i < result.webparts.length; i++) {
+                    var wp = new CSREditor.WebPartModel(_this, result.webparts[i]);
                     wpDict[wp.wpq] = wp;
                     _this.webparts.push(wp);
+                }
+                for (var i = 0; i < result.displayTemplates.length; i++) {
+                    var siteCollUrl = _this.siteServerRelativeUrl == "/" ? "" : _this.siteServerRelativeUrl;
+                    var displayTemplateUrl = result.displayTemplates[i].info.TemplateUrl;
+                    displayTemplateUrl = displayTemplateUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
+                    displayTemplateUrl = CSREditor.Utils.cutOffQueryString(displayTemplateUrl.replace(' ', '%20'));
+                    displayTemplateUrl = displayTemplateUrl.replace(/\.js$/, '.html');
+                    for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
+                        if (_this.otherFiles[o].url == displayTemplateUrl) {
+                            var fm = _this.otherFiles[o];
+                            fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
+                            fm.displayTemplateData = result.displayTemplates[i].info;
+                            _this.otherFiles.remove(fm);
+                            _this.displayTemplates.push(fm);
+                        }
+                    }
                 }
                 CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (jsLinkInfo, errorInfo) {
                     _this.loading = false;
@@ -649,13 +888,20 @@ var CSREditor;
             if (!changeObj)
                 return;
             var isTS = this.editorCM.getOption("mode") == "text/typescript";
+            var isHtml = this.editorCM.getOption("mode") == "text/html";
             if (isTS)
                 this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
             var url = this.fileName;
             if (url != null) {
+                var text = cm.getValue();
                 if (isTS)
                     this.filesList.refreshCSR(url, this.typeScriptService.getJs());
-                var text = cm.getValue();
+                else if (isHtml) {
+                    // TODO: fetch all window.DisplayTemplate_0b77f82bb86d468f833c200df35e147c.DisplayTemplateData
+                    var div = $(text).filter('div');
+                    var jsContent = new DisplayTemplateTransformer().Transform(div.html(), div.attr('id'), this.filesList.currentFile.displayTemplateUniqueId, this.filesList.currentFile.displayTemplateData);
+                    this.filesList.refreshCSR(url, jsContent);
+                }
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
                 if (isTS) {
@@ -718,7 +964,7 @@ var CSREditor;
             var wpqId = 2;
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
-                return [];
+                return { webparts: [], displayTemplates: [] };
             }
             while ($get("MSOZoneCell_WebPartWPQ" + wpqId) != null) {
                 var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
@@ -790,7 +1036,16 @@ var CSREditor;
             else {
                 window["g_Cisar_JSLinkUrls"] = {};
             }
-            return webparts;
+            var displayTemplates = Object.keys(window).filter(function (k) { return k.indexOf('DisplayTemplate_') == 0 && window[k].DisplayTemplateData; }).map(function (k) {
+                return {
+                    uniqueId: k.substr("DisplayTemplate_".length),
+                    info: window[k].DisplayTemplateData
+                };
+            });
+            return {
+                webparts: webparts,
+                displayTemplates: displayTemplates
+            };
         };
         SPActions.getCode_checkJSLinkInfoRetrieved = function () {
             return "(" + SPActions.checkJSLinkInfoRetrieved + ")();";
@@ -919,7 +1174,6 @@ var CSREditor;
                         substract_objects(obj1[p], obj2[p]);
                 }
             };
-            var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
             if (window["g_templateOverrides_" + fileName])
                 substract_objects(SPClientTemplates.TemplateManager["_TemplateOverrides"], window["g_templateOverrides_" + fileName]);
@@ -987,6 +1241,15 @@ var CSREditor;
                 document.body.removeChild($get('csrErrorDivText'));
             try {
                 eval(content);
+                var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
+                for (var i = 0; i < elements.length; i++) {
+                    var control = Srch.U.getClientComponent(elements[i]);
+                    if (control && control.render) {
+                        while (elements[i].hasChildNodes())
+                            elements[i].removeChild(elements[i].childNodes[0]);
+                        control.render();
+                    }
+                }
             }
             catch (err) {
                 console.log("Error when evaluating the CSR template code!");

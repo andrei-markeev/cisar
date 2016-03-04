@@ -21,7 +21,7 @@ module CSREditor {
 
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
-                return [];
+                return { webparts: [], displayTemplates: []};
             }
 
             while ($get("MSOZoneCell_WebPartWPQ" + wpqId) != null) {
@@ -108,7 +108,15 @@ module CSREditor {
                 window["g_Cisar_JSLinkUrls"] = {};
             }
 
-            return webparts;
+            var displayTemplates = Object.keys(window).filter(k => k.indexOf('DisplayTemplate_') == 0 && window[k].DisplayTemplateData).map(k => { return {
+                uniqueId: k.substr("DisplayTemplate_".length),
+                info: window[k].DisplayTemplateData
+            }});
+
+            return {
+                webparts: webparts,
+                displayTemplates: displayTemplates
+            };
         }
 
 
@@ -265,7 +273,6 @@ module CSREditor {
                 }
             };
 
-            var path = url.substr(0, url.lastIndexOf('/'));
             var fileName = url.substr(url.lastIndexOf('/') + 1);
 
             if (window["g_templateOverrides_" + fileName])
@@ -348,6 +355,19 @@ module CSREditor {
 
             try {
                 eval(content);
+                
+                var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
+                for (var i=0;i<elements.length;i++)
+                {
+                    var control = Srch.U.getClientComponent(elements[i]);
+                    if (control && control.render)
+                    {
+                        while (elements[i].hasChildNodes())
+                            elements[i].removeChild(elements[i].childNodes[0]);
+                        control.render();
+                    }
+                }
+                
             }
             catch (err) {
                 console.log("Error when evaluating the CSR template code!");

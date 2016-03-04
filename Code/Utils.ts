@@ -6,7 +6,7 @@
             return s.indexOf(suffix, s.length - suffix.length) !== -1;
         }
 
-        public static cutOffQueryString(s) {
+        public static cutOffQueryString(s): string {
             if (s.indexOf('?') > 0)
                 s = s.substr(0, s.indexOf('?'));
             return s;

@@ -9,6 +9,7 @@ module CSREditor {
         public currentWebPart: WebPartModel;
         public currentFile: FileModel;
         public webparts: WebPartModel[];
+        public displayTemplates: FileModel[];
         public otherFiles: FileModel[];
 
         public fileError: string = null;
@@ -59,6 +60,7 @@ module CSREditor {
             this.loading = true;
             this.webparts = [];
             this.otherFiles = [];
+            this.displayTemplates = [];
             this.currentWebPart = null;
             this.currentFile = null;
             this.personalView = false;
@@ -94,10 +96,28 @@ module CSREditor {
                     return;
                 }
                 var wpDict: { [id: number]: WebPartModel } = {};
-                for (var i = 0; i < result.length; i++) {
-                    var wp = new WebPartModel(this, result[i]);
+                for (var i = 0; i < result.webparts.length; i++) {
+                    var wp = new WebPartModel(this, result.webparts[i]);
                     wpDict[wp.wpq] = wp;
                     this.webparts.push(wp);
+                }
+
+                for (var i = 0; i < result.displayTemplates.length; i++) {
+                    var siteCollUrl = this.siteServerRelativeUrl == "/" ? "" : this.siteServerRelativeUrl;
+                    var displayTemplateUrl = result.displayTemplates[i].info.TemplateUrl;
+                    displayTemplateUrl = displayTemplateUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
+                    displayTemplateUrl = Utils.cutOffQueryString(displayTemplateUrl.replace(' ','%20'));
+                    displayTemplateUrl = displayTemplateUrl.replace(/\.js$/,'.html');
+                    for (var o = this.otherFiles.length - 1; o >= 0; o--) {
+                        if (this.otherFiles[o].url == displayTemplateUrl)
+                        {
+                            var fm = this.otherFiles[o];
+                            fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
+                            fm.displayTemplateData = result.displayTemplates[i].info;
+                            this.otherFiles.remove(fm);
+                            this.displayTemplates.push(fm);
+                        }
+                    }
                 }
 
                 CSREditor.ChromeIntegration.waitForResult(SPActions.getCode_checkJSLinkInfoRetrieved(), (jsLinkInfo, errorInfo) => {

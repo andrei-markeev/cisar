@@ -133,16 +133,30 @@
                 return;
 
             var isTS = this.editorCM.getOption("mode") == "text/typescript";
+            var isHtml = this.editorCM.getOption("mode") == "text/html";
 
             if (isTS)
                 this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
 
             var url = this.fileName;
             if (url != null) {
-                if (isTS)
-                    this.filesList.refreshCSR(url, this.typeScriptService.getJs());
 
                 var text = cm.getValue();
+                if (isTS)
+                    this.filesList.refreshCSR(url, this.typeScriptService.getJs());
+                else if (isHtml)
+                {
+                    // TODO: fetch all window.DisplayTemplate_0b77f82bb86d468f833c200df35e147c.DisplayTemplateData
+                    var div = $(text).filter('div');
+                    var jsContent = new DisplayTemplateTransformer().Transform(
+                        div.html(),
+                        div.attr('id'),
+                        this.filesList.currentFile.displayTemplateUniqueId,
+                        this.filesList.currentFile.displayTemplateData);
+                    
+                    this.filesList.refreshCSR(url, jsContent);
+                }
+
                 this.filesList.saveChangesToFile(url, text);
                 this.modifiedFilesContent[url] = text;
 

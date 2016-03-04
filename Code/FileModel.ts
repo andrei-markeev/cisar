@@ -19,6 +19,8 @@
         private wp: WebPartModel;
 
         public isDisplayTemplate: boolean = false;
+        public displayTemplateUniqueId: string;
+        public displayTemplateData: any;
         public url: string = '';
         public shortUrl: string = '';
         public justCreated: boolean = false;
