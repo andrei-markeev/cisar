@@ -221,7 +221,8 @@ var DisplayTemplateTransformer = (function () {
             jsContent += "  ctx['ItemValues'] = cachePreviousItemValuesFunction;\n";
         jsContent += "  ctx['DisplayTemplateData'] = cachePreviousTemplateData;\n";
         jsContent += "  return ms_outHtml.join('');\n";
-        jsContent += "}\n";
+        jsContent += "};\n";
+        jsContent += "\n        function RegisterTemplate_" + uniqueId + "() {\n            if (\"undefined\" != typeof (Srch) && \"undefined\" != typeof (Srch.U) && typeof(Srch.U.registerRenderTemplateByName) == \"function\") {\n                Srch.U.registerRenderTemplateByName(\"" + templateName + "\", DisplayTemplate_" + uniqueId + ");\n                Srch.U.registerRenderTemplateByName(\"" + templateInfo.TemplateUrl + "\", DisplayTemplate_" + uniqueId + ");\n            }\n        }\n        RegisterTemplate_" + uniqueId + "();";
         return jsContent;
     };
     DisplayTemplateTransformer.prototype.ProcessLineSegment = function () {
@@ -1247,6 +1248,7 @@ var CSREditor;
                     if (control && control.render) {
                         while (elements[i].hasChildNodes())
                             elements[i].removeChild(elements[i].childNodes[0]);
+                        control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(function (r) { return delete r.id; });
                         control.render();
                     }
                 }

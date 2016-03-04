@@ -364,6 +364,7 @@ module CSREditor {
                     {
                         while (elements[i].hasChildNodes())
                             elements[i].removeChild(elements[i].childNodes[0]);
+                        control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(r => delete r.id);
                         control.render();
                     }
                 }

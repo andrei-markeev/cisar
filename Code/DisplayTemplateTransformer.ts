@@ -138,7 +138,16 @@ class DisplayTemplateTransformer
         
         jsContent += "  ctx['DisplayTemplateData'] = cachePreviousTemplateData;\n";
         jsContent += "  return ms_outHtml.join('');\n";
-        jsContent += "}\n";
+        jsContent += "};\n";
+        
+        jsContent += `
+        function RegisterTemplate_${uniqueId}() {
+            if ("undefined" != typeof (Srch) && "undefined" != typeof (Srch.U) && typeof(Srch.U.registerRenderTemplateByName) == "function") {
+                Srch.U.registerRenderTemplateByName("${templateName}", DisplayTemplate_${uniqueId});
+                Srch.U.registerRenderTemplateByName("${templateInfo.TemplateUrl}", DisplayTemplate_${uniqueId});
+            }
+        }
+        RegisterTemplate_${uniqueId}();`;
         
         return jsContent;
     }
