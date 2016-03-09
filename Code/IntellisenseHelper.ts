@@ -3,7 +3,7 @@
     export class IntellisenseHelper {
 
         private typeScriptService: TypeScriptService;
-        private tooltipLastPos = { line: -1, ch: -1 };
+        private tooltipLastPos: CodeMirror.Position = { line: -1, ch: -1 };
         private fieldNames = [];
 
         constructor (typeScriptService: TypeScriptService, editor: CodeMirror.Editor) {
@@ -85,7 +85,7 @@
             });
         }
 
-        private showAutoCompleteDropDown(cm: CodeMirror.Doc, changePosition) {
+        private showAutoCompleteDropDown(cm: CodeMirror.Doc, changePosition: CodeMirror.Position) {
             var scriptPosition = cm.indexFromPos(changePosition) + 1;
             var completions = this.typeScriptService.getCompletions(scriptPosition);
 
@@ -113,7 +113,7 @@
 
         }
 
-        private showFunctionTooltip(cm: CodeMirror.Doc, changePosition) {
+        private showFunctionTooltip(cm: CodeMirror.Doc, changePosition: CodeMirror.Position) {
 
             $('.tooltip').remove();
 
@@ -144,14 +144,14 @@
             }
         }
 
-        public scriptChanged(cm: CodeMirror.Doc, changeObj?: CodeMirror.EditorChangeLinkedList) {
-            if (changeObj.text.length == 1 && changeObj.text[0] == '.') {
-                this.showAutoCompleteDropDown(cm, changeObj.to);
+        public scriptChanged(cm: CodeMirror.Doc, changeText: string, changePos: CodeMirror.Position) {
+            if (changeText == '.') {
+                this.showAutoCompleteDropDown(cm, changePos);
             }
-            else if (changeObj.text.length == 1 && (changeObj.text[0] == '(' || changeObj.text[0] == ',')) {
-                this.showFunctionTooltip(cm, changeObj.to);
+            else if (changeText == '(' || changeText == ',') {
+                this.showFunctionTooltip(cm, changePos);
             }
-            else if (changeObj.text.length == 1 && changeObj.text[0] == ')') {
+            else if (changeText == ')') {
                 $('.tooltip').remove();
             }
         }

@@ -32,21 +32,23 @@ enum TransformIndexType
 class DisplayTemplateTransformer
 {
     private CurrentLine: string;
-    private CurrentLineNumber: number;
     private Indexes: { [key: number]: number };
     private CurrentState: TransformState;
     private PreviousState: TransformState;
     private NextTokenType: TransformIndexType;
+    private StartHtmlPos: number;
+    private PositionMap: { js: number, html: number }[];
     
     private static tokenIndices: TransformIndexType[] = [
       TransformIndexType.CodeBeginToken, TransformIndexType.CodeEndToken,
       TransformIndexType.RenderBeginToken, TransformIndexType.RenderEndToken
     ];
     
-    constructor()
+    constructor(startHtmlPos: number)
     {
         this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
-        this.CurrentLineNumber = 0;
+        this.PositionMap = [];
+        this.StartHtmlPos = startHtmlPos;
     }
         
     public Transform(htmlToTransform: string, templateName: string, uniqueId: string, templateInfo: any): string
@@ -84,6 +86,10 @@ class DisplayTemplateTransformer
         jsContent += "\n";
 
         jsContent += "  ms_outHtml.push(''";
+
+        var currentPos = this.StartHtmlPos;
+        this.PositionMap.push({ js: jsContent.length, html: currentPos });
+
         var htmlLines = htmlToTransform.split('\n');
         while (htmlLines.length > 0)
         {
@@ -102,6 +108,8 @@ class DisplayTemplateTransformer
                     jsContent += "  ms_outHtml.push(";
                 else if (this.CurrentState != TransformState.LogicBlock)
                     jsContent += ",";
+
+                this.PositionMap.push({ js: jsContent.length, html: currentPos + this.Indexes[TransformIndexType.ContentStart] });
 
                 switch (this.CurrentState)
                 {
@@ -125,10 +133,13 @@ class DisplayTemplateTransformer
                     throw "ParseProgressException";
                 else
                     length = this.Indexes[TransformIndexType.ContentEnd];
+                    
+                this.PositionMap.push({ js: jsContent.length, html: currentPos + length });
             
             } while (this.Indexes[TransformIndexType.ContentEnd] < this.CurrentLine.length);
             
             jsContent += "\n";
+            currentPos += this.CurrentLine.length + 1;
             
         }
         jsContent += ");\n";
@@ -149,25 +160,29 @@ class DisplayTemplateTransformer
         }
         RegisterTemplate_${uniqueId}();`;
         
+        this.PositionMap.push({ js: jsContent.length, html: currentPos });
+        
         return jsContent;
+    }
+    
+    public GetPositionInHtml(posInJs: number): number
+    {
+        if (this.PositionMap.length == 0)
+            return posInJs;
+        for(var i=0;i<this.PositionMap.length-1;i++)
+        {
+            if (this.PositionMap[i].js <= posInJs && posInJs < this.PositionMap[i+1].js)
+            {
+                return this.PositionMap[i].html + posInJs - this.PositionMap[i].js;
+            }
+        }
+        return -1;
     }
     
     private ProcessLineSegment()
     {
         this.FindLineTokenIndices();
         this.FindSegmentTypeAndContent();
-        switch (this.CurrentState)
-        {
-            case TransformState.HtmlBlock:
-                //this.ValidateHtmlBlock();
-            break;
-            case TransformState.LogicBlock:
-                //this.ValidateLogicBlock();
-            break;
-            case TransformState.RenderExpression:
-                //this.ValidateRenderingExpression();
-            break;
-        }
     }
     
     private FindSegmentTypeAndContent()

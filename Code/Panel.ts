@@ -43,7 +43,7 @@
                             existingSymbols[completions.entries[i].name] = 1;
                     }
                     for (var k = 0; k < result.length; k++) {
-                        if (typeof existingSymbols[result[k]] == 'undefined' && /^[a-zA-Z_][a-zA-Z0-9_]+$/.test(result[k]))
+                        if (typeof existingSymbols[result[k]] == 'undefined' && /^[\$a-zA-Z_][\$a-zA-Z0-9_]+$/.test(result[k]))
                             windowTS += 'var ' + result[k] + ': any;';
                     }
                     this.typeScriptService.windowChanged(windowTS);
@@ -118,6 +118,11 @@
                 this.modifiedFilesContent[url] = text;
                 this.filesList.saveChangesToFile(url, text, true);
             }
+            
+            this.intellisenseHelper.setFieldInternalNames([]);
+            if (!this.filesList.currentWebPart)
+                return;
+                
             ChromeIntegration.eval(SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), (result, errorInfo) => {
                 var fieldNames = [];
                 for (var i in result) {
@@ -146,19 +151,33 @@
             if (url != null) {
 
                 var text = cm.getValue();
+
+                var match = text.match(/<div[^>]+>/);
+                var divtag_endpos = 0;
+                if (match != null)
+                    divtag_endpos = match.index + match[0].length;
+                var transformer = new DisplayTemplateTransformer(divtag_endpos);
+
                 if (isTS)
                     this.filesList.refreshCSR(url, this.typeScriptService.getJs());
                 else if (isHtml)
                 {
-                    // TODO: fetch all window.DisplayTemplate_0b77f82bb86d468f833c200df35e147c.DisplayTemplateData
-                    var div = $(text).filter('div');
-                    var jsContent = new DisplayTemplateTransformer().Transform(
-                        div.html(),
-                        div.attr('id'),
-                        this.filesList.currentFile.displayTemplateUniqueId,
-                        this.filesList.currentFile.displayTemplateData);
-                    
-                    this.filesList.refreshCSR(url, jsContent);
+                    try
+                    {
+                        var div = $(text).filter('div');
+                        var jsContent = transformer.Transform(
+                            div.html(),
+                            div.attr('id'),
+                            this.filesList.currentFile.displayTemplateUniqueId,
+                            this.filesList.currentFile.displayTemplateData);
+                        
+                        this.filesList.refreshCSR(url, jsContent);
+                        this.typeScriptService.scriptChanged(jsContent, 0, 0);
+                    }
+                    catch(e)
+                    {
+                        console.log(e);
+                    }
                 }
 
                 if (this.needSave)
@@ -167,15 +186,14 @@
                     this.modifiedFilesContent[url] = text;
                 }
 
-                if (isTS) {
-                    this.intellisenseHelper.scriptChanged(cm, changeObj);
-                    this.checkSyntax(cm);
-                }
+                if (changeObj.text.length == 1)
+                    this.intellisenseHelper.scriptChanged(cm, changeObj.text[0], changeObj.to);
+                this.checkSyntax(cm, transformer);
             }
         }
 
         private static checkSyntaxTimeout: number = 0;
-        private checkSyntax(cm: CodeMirror.Doc) {
+        private checkSyntax(cm: CodeMirror.Doc, transformer: DisplayTemplateTransformer) {
             var allMarkers = cm.getAllMarks();
             for (var i = 0; i < allMarkers.length; i++) {
                 allMarkers[i].clear();
@@ -200,10 +218,14 @@
                         text = texts.join('\n  ');
                     }
 
-                    cm.markText(cm.posFromIndex(errors[i].start), cm.posFromIndex(errors[i].start + errors[i].length), {
-                        className: "syntax-error",
-                        title: text
-                    });
+                    var start = transformer.GetPositionInHtml(errors[i].start);
+                    var end = transformer.GetPositionInHtml(errors[i].start + errors[i].length);
+                    
+                    if (start != -1 && end != -1)
+                        cm.markText(cm.posFromIndex(start), cm.posFromIndex(end), {
+                            className: "syntax-error",
+                            title: text
+                        });
                 }
             }, 1500);
         }
