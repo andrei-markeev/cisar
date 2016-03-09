@@ -18,7 +18,14 @@ CodeMirror.defineMode("htmlmixed", function(config, parserConfig) {
   function html(stream, state) {
     var tagName = state.htmlState.tagName;
     var style = htmlMode.token(stream, state.htmlState);
-    if (tagName == "script" && /\btag\b/.test(style) && stream.current() == ">") {
+    if (style == "comment" && stream.string.indexOf('<!--#_')==0)
+    {
+        var jsmode = CodeMirror.getMode(config, "javascript");
+        state.token = script;
+        state.localMode = jsmode;
+        state.localState = jsmode.startState && jsmode.startState(htmlMode.indent(state.htmlState, ""));
+    }
+    else if (tagName == "script" && /\btag\b/.test(style) && stream.current() == ">") {
       // Script block: mode to change to depends on type attribute
       var scriptType = stream.string.slice(Math.max(0, stream.pos - 100), stream.pos).match(/\btype\s*=\s*("[^"]+"|'[^']+'|\S+)[^<]*$/i);
       scriptType = scriptType ? scriptType[1] : "";
@@ -52,12 +59,12 @@ CodeMirror.defineMode("htmlmixed", function(config, parserConfig) {
     return style;
   }
   function script(stream, state) {
-    if (stream.match(/^<\/\s*script\s*>/i, false)) {
+    if (stream.match(/^(<\/\s*script\s*>|_#\-\->)/i, false)) {
       state.token = html;
       state.localState = state.localMode = null;
       return html(stream, state);
     }
-    return maybeBackup(stream, /<\/\s*script\s*>/,
+    return maybeBackup(stream, /<\/\s*script\s*>|_#\-\->/,
                        state.localMode.token(stream, state.localState));
   }
   function css(stream, state) {
