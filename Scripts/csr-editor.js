@@ -775,6 +775,7 @@ var CSREditor;
         function Panel() {
             this.fileName = null;
             this.modifiedFilesContent = {};
+            this.needSave = false;
         }
         Panel.start = function () {
             var panel = new Panel();
@@ -866,10 +867,12 @@ var CSREditor;
             this.filesList.fileError = null;
             this.fileName = url;
             this.editorCM.setOption("mode", url != null && url.endsWith(".js") ? "text/typescript" : "text/html");
+            this.needSave = false;
             this.editorCM.getDoc().setValue(text);
             this.editorCM.setOption("readOnly", url == null);
             if (url == null)
                 return;
+            this.needSave = true;
             if (newlyCreated) {
                 this.modifiedFilesContent[url] = text;
                 this.filesList.saveChangesToFile(url, text, true);
@@ -903,8 +906,10 @@ var CSREditor;
                     var jsContent = new DisplayTemplateTransformer().Transform(div.html(), div.attr('id'), this.filesList.currentFile.displayTemplateUniqueId, this.filesList.currentFile.displayTemplateData);
                     this.filesList.refreshCSR(url, jsContent);
                 }
-                this.filesList.saveChangesToFile(url, text);
-                this.modifiedFilesContent[url] = text;
+                if (this.needSave) {
+                    this.filesList.saveChangesToFile(url, text);
+                    this.modifiedFilesContent[url] = text;
+                }
                 if (isTS) {
                     this.intellisenseHelper.scriptChanged(cm, changeObj);
                     this.checkSyntax(cm);
