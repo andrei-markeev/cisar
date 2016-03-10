@@ -242,6 +242,16 @@ var DisplayTemplateTransformer = (function () {
         }
         return -1;
     };
+    DisplayTemplateTransformer.prototype.GetPositionInJs = function (posInHtml) {
+        if (this.PositionMap.length == 0)
+            return posInHtml;
+        for (var i = 0; i < this.PositionMap.length - 1; i++) {
+            if (this.PositionMap[i].html <= posInHtml && posInHtml < this.PositionMap[i + 1].html) {
+                return this.PositionMap[i].js + posInHtml - this.PositionMap[i].html;
+            }
+        }
+        return -1;
+    };
     DisplayTemplateTransformer.prototype.ProcessLineSegment = function () {
         this.FindLineTokenIndices();
         this.FindSegmentTypeAndContent();
@@ -571,9 +581,13 @@ var CSREditor;
             this.fieldNames = fieldNames;
         };
         IntellisenseHelper.prototype.joinParts = function (displayParts) {
-            return displayParts.map(function (p) { return p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>"; }).join("").replace('\n', '<br/>');
+            if (displayParts)
+                return displayParts.map(function (p) { return p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>"; }).join("").replace('\n', '<br/>');
+            else
+                return '';
         };
         IntellisenseHelper.prototype.showCodeMirrorHint = function (cm, list) {
+            var _this = this;
             list.sort(function (l, r) {
                 if (l.displayText > r.displayText)
                     return 1;
@@ -612,6 +626,11 @@ var CSREditor;
                     var tooltip;
                     CodeMirror.on(completionInfo, "select", function (completion, element) {
                         $('.tooltip').remove();
+                        if (!completion.typeInfo && completion.pos) {
+                            var details = _this.typeScriptService.getCompletionDetails(completion.pos, completion.text);
+                            completion.typeInfo = _this.joinParts(details.displayParts);
+                            completion.docComment = _this.joinParts(details.documentation);
+                        }
                         if (completion.typeInfo) {
                             $(element).tooltip({
                                 html: true,
@@ -629,38 +648,33 @@ var CSREditor;
             });
         };
         IntellisenseHelper.prototype.showAutoCompleteDropDown = function (cm, changePosition) {
-            var scriptPosition = cm.indexFromPos(changePosition) + 1;
-            var completions = this.typeScriptService.getCompletions(scriptPosition);
+            var completions = this.typeScriptService.getCompletions(changePosition);
             if (completions == null)
                 return;
             $('.tooltip').remove();
             var list = [];
             for (var i = 0; i < completions.entries.length; i++) {
-                var details = this.typeScriptService.getCompletionDetails(scriptPosition, completions.entries[i].name);
-                if (details != null) {
-                    list.push({
-                        text: completions.entries[i].name,
-                        displayText: completions.entries[i].name,
-                        typeInfo: this.joinParts(details.displayParts),
-                        kind: completions.entries[i].kind,
-                        docComment: this.joinParts(details.documentation),
-                        livePreview: false
-                    });
-                }
+                list.push({
+                    text: completions.entries[i].name,
+                    displayText: completions.entries[i].name,
+                    kind: completions.entries[i].kind,
+                    pos: changePosition,
+                    livePreview: false
+                });
             }
             this.showCodeMirrorHint(cm, list);
         };
         IntellisenseHelper.prototype.showFunctionTooltip = function (cm, changePosition) {
             var _this = this;
             $('.tooltip').remove();
-            var signatures = this.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
+            var signatures = this.typeScriptService.getSignature(changePosition);
             if (signatures && signatures.items && signatures.selectedItemIndex >= 0) {
                 var signature = signatures.items[signatures.selectedItemIndex];
                 var paramsString = signature.parameters
                     .map(function (p) { return _this.joinParts(p.displayParts); })
                     .join(this.joinParts(signature.separatorDisplayParts));
                 var signatureString = this.joinParts(signature.prefixDisplayParts) + paramsString + this.joinParts(signature.suffixDisplayParts);
-                this.tooltipLastPos = changePosition;
+                this.tooltipLastPos = cm.getCursor();
                 var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
                 var domElement = cm.getEditor().getWrapperElement();
                 $(domElement).data('bs.tooltip', false).tooltip({
@@ -930,7 +944,7 @@ var CSREditor;
                     this.modifiedFilesContent[url] = text;
                 }
                 if (changeObj.text.length == 1)
-                    this.intellisenseHelper.scriptChanged(cm, changeObj.text[0], changeObj.to);
+                    this.intellisenseHelper.scriptChanged(cm, changeObj.text[0], transformer.GetPositionInJs(cm.indexFromPos(changeObj.to) + 1));
                 this.checkSyntax(cm, transformer);
             }
         };

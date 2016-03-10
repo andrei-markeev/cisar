@@ -178,6 +178,20 @@ class DisplayTemplateTransformer
         }
         return -1;
     }
+
+    public GetPositionInJs(posInHtml: number): number
+    {
+        if (this.PositionMap.length == 0)
+            return posInHtml;
+        for(var i=0;i<this.PositionMap.length-1;i++)
+        {
+            if (this.PositionMap[i].html <= posInHtml && posInHtml < this.PositionMap[i+1].html)
+            {
+                return this.PositionMap[i].js + posInHtml - this.PositionMap[i].html;
+            }
+        }
+        return -1;
+    }
     
     private ProcessLineSegment()
     {

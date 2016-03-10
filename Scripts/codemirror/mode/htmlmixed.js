@@ -18,9 +18,18 @@ CodeMirror.defineMode("htmlmixed", function(config, parserConfig) {
   function html(stream, state) {
     var tagName = state.htmlState.tagName;
     var style = htmlMode.token(stream, state.htmlState);
-    if (style == "comment" && stream.string.indexOf('<!--#_')==0)
+    var jsmode = CodeMirror.getMode(config, "javascript");
+    if ((style==null || style=="string") && stream.current().indexOf('_#=') >= 0)
     {
-        var jsmode = CodeMirror.getMode(config, "javascript");
+        state.token = script;
+        state.localMode = jsmode;
+        state.localState = jsmode.startState && jsmode.startState(htmlMode.indent(state.htmlState, ""));
+        if (style == "string")
+            state.returnPos = stream.pos;
+        stream.backUp(stream.current().length - stream.current().indexOf('_#=') - 3);
+    }
+    else if (style == "comment" && stream.string.indexOf('<!--#_')==0)
+    {
         state.token = script;
         state.localMode = jsmode;
         state.localState = jsmode.startState && jsmode.startState(htmlMode.indent(state.htmlState, ""));
@@ -59,12 +68,18 @@ CodeMirror.defineMode("htmlmixed", function(config, parserConfig) {
     return style;
   }
   function script(stream, state) {
-    if (stream.match(/^(<\/\s*script\s*>|_#\-\->)/i, false)) {
+    if (stream.match(/^(<\/\s*script\s*>|_#\-\->|=#_)/i, false)) {
       state.token = html;
       state.localState = state.localMode = null;
+      if (state.returnPos)
+      {
+        stream.pos = state.returnPos;
+        delete state.returnPos;
+        return "string";
+      }
       return html(stream, state);
     }
-    return maybeBackup(stream, /<\/\s*script\s*>|_#\-\->/,
+    return maybeBackup(stream, /<\/\s*script\s*>|_#\-\->|=#_/,
                        state.localMode.token(stream, state.localState));
   }
   function css(stream, state) {

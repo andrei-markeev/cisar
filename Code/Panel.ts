@@ -187,7 +187,7 @@
                 }
 
                 if (changeObj.text.length == 1)
-                    this.intellisenseHelper.scriptChanged(cm, changeObj.text[0], changeObj.to);
+                    this.intellisenseHelper.scriptChanged(cm, changeObj.text[0], transformer.GetPositionInJs(cm.indexFromPos(changeObj.to)+1));
                 this.checkSyntax(cm, transformer);
             }
         }

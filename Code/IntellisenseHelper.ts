@@ -21,11 +21,14 @@
         }
 
         private joinParts(displayParts: ts.SymbolDisplayPart[]) {
-            return displayParts.map(p => p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>").join("").replace('\n', '<br/>');
+            if (displayParts)
+                return displayParts.map(p => p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>").join("").replace('\n', '<br/>');
+            else
+                return '';
         }
 
         private showCodeMirrorHint(cm: CodeMirror.Doc, list) {
-            list.sort(function (l, r) {
+            list.sort((l, r) => {
                 if (l.displayText > r.displayText) return 1;
                 if (l.displayText < r.displayText) return -1;
                 return 0;
@@ -33,7 +36,7 @@
 
             cm.getEditor()["showHint"]({
                 completeSingle: false,
-                hint: function (cm) {
+                hint: (cm) => {
                     var cur = cm.getCursor();
                     var token = cm.getTokenAt(cur);
                     var completionInfo = null;
@@ -65,8 +68,13 @@
                     }
 
                     var tooltip;
-                    CodeMirror.on(completionInfo, "select", function (completion, element) {
+                    CodeMirror.on(completionInfo, "select", (completion, element) => {
                         $('.tooltip').remove();
+                        if (!completion.typeInfo && completion.pos) {
+                            var details = this.typeScriptService.getCompletionDetails(completion.pos, completion.text);
+                            completion.typeInfo = this.joinParts(details.displayParts);
+                            completion.docComment = this.joinParts(details.documentation);
+                        }
                         if (completion.typeInfo) {
                             $(element).tooltip({
                                 html: true,
@@ -76,7 +84,7 @@
                             $(element).tooltip('show');
                         }
                     });
-                    CodeMirror.on(completionInfo, "close", function () {
+                    CodeMirror.on(completionInfo, "close", () => {
                         $('.tooltip').remove();
                     });
 
@@ -85,9 +93,8 @@
             });
         }
 
-        private showAutoCompleteDropDown(cm: CodeMirror.Doc, changePosition: CodeMirror.Position) {
-            var scriptPosition = cm.indexFromPos(changePosition) + 1;
-            var completions = this.typeScriptService.getCompletions(scriptPosition);
+        private showAutoCompleteDropDown(cm: CodeMirror.Doc, changePosition: number) {
+            var completions = this.typeScriptService.getCompletions(changePosition);
 
             if (completions == null)
                 return;
@@ -96,28 +103,24 @@
 
             var list = [];
             for (var i = 0; i < completions.entries.length; i++) {
-                var details = this.typeScriptService.getCompletionDetails(scriptPosition, completions.entries[i].name);
-                if (details != null) {
-                    list.push({
-                        text: completions.entries[i].name,
-                        displayText: completions.entries[i].name,
-                        typeInfo: this.joinParts(details.displayParts),
-                        kind: completions.entries[i].kind,
-                        docComment: this.joinParts(details.documentation),
-                        livePreview: false
-                    });
-                }
+                list.push({
+                    text: completions.entries[i].name,
+                    displayText: completions.entries[i].name,
+                    kind: completions.entries[i].kind,
+                    pos: changePosition,
+                    livePreview: false
+                });
             }
 
             this.showCodeMirrorHint(cm, list);
 
         }
 
-        private showFunctionTooltip(cm: CodeMirror.Doc, changePosition: CodeMirror.Position) {
+        private showFunctionTooltip(cm: CodeMirror.Doc, changePosition: number) {
 
             $('.tooltip').remove();
 
-            var signatures = this.typeScriptService.getSignature(cm.indexFromPos(changePosition) + 1);
+            var signatures = this.typeScriptService.getSignature(changePosition);
 
             if (signatures && signatures.items && signatures.selectedItemIndex >= 0) {
 
@@ -128,7 +131,7 @@
                     .join(this.joinParts(signature.separatorDisplayParts));
                 var signatureString = this.joinParts(signature.prefixDisplayParts) + paramsString + this.joinParts(signature.suffixDisplayParts);
 
-                this.tooltipLastPos = changePosition;
+                this.tooltipLastPos = cm.getCursor();
                 var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
                 var domElement = cm.getEditor().getWrapperElement();
 
@@ -137,14 +140,14 @@
                     title: '<div class="tooltip-typeInfo">' + signatureString + '</div>' + '<div class="tooltip-docComment">' + this.joinParts(signature.documentation) + '</div>',
                     trigger: 'manual', container: 'body', placement: 'bottom'
                 });
-                $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
+                $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', () => {
                     $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px")
             });
                 $(domElement).tooltip('show');
             }
         }
 
-        public scriptChanged(cm: CodeMirror.Doc, changeText: string, changePos: CodeMirror.Position) {
+        public scriptChanged(cm: CodeMirror.Doc, changeText: string, changePos: number) {
             if (changeText == '.') {
                 this.showAutoCompleteDropDown(cm, changePos);
             }
