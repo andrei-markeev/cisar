@@ -139,29 +139,45 @@ var TransformIndexType;
     TransformIndexType[TransformIndexType["RenderEndToken"] = 6] = "RenderEndToken";
 })(TransformIndexType || (TransformIndexType = {}));
 var DisplayTemplateTransformer = (function () {
-    function DisplayTemplateTransformer(startHtmlPos) {
-        this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
+    function DisplayTemplateTransformer(html, uniqueId, templateData) {
+        var match = html.match(/<div[^>]*>/);
+        var divtag_endpos = 0;
+        if (match != null)
+            divtag_endpos = match.index + match[0].length;
         this.PositionMap = [];
-        this.StartHtmlPos = startHtmlPos;
+        this.StartHtmlPos = divtag_endpos;
+        match = html.match(/<script[^>]*>/);
+        var scripttag_endpos = 0;
+        if (match != null)
+            scripttag_endpos = match.index + match[0].length;
+        this.ScriptBlockPosInHtml = scripttag_endpos;
+        var html_doc = $(html);
+        var div = html_doc.filter('div');
+        this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
+        this.UniqueId = uniqueId;
+        this.TemplateData = templateData;
+        this.TemplateName = div.attr('id');
+        this.HtmlToTransform = div.html();
+        this.ScriptBlockContent = html_doc.filter('script').html();
     }
-    DisplayTemplateTransformer.prototype.Transform = function (htmlToTransform, templateName, uniqueId, templateInfo) {
+    DisplayTemplateTransformer.prototype.Transform = function () {
         var jsContent = "";
-        jsContent += "window.DisplayTemplate_" + uniqueId + " = function(ctx) {\n";
+        jsContent += "window.DisplayTemplate_" + this.UniqueId + " = function(ctx) {\n";
         jsContent += "  var ms_outHtml=[];\n";
         jsContent += "  var cachePreviousTemplateData = ctx['DisplayTemplateData'];\n";
         jsContent += "  ctx['DisplayTemplateData'] = new Object();\n";
-        jsContent += "  DisplayTemplate_" + uniqueId + ".DisplayTemplateData = ctx['DisplayTemplateData'];\n";
-        jsContent += "  ctx['DisplayTemplateData']['TemplateUrl']='" + templateInfo.TemplateUrl + "';\n";
-        jsContent += "  ctx['DisplayTemplateData']['TemplateType']='" + templateInfo.TemplateType + "';\n";
-        jsContent += "  ctx['DisplayTemplateData']['TargetControlType']=" + JSON.stringify(templateInfo.TargetControlType) + ";\n";
+        jsContent += "  DisplayTemplate_" + this.UniqueId + ".DisplayTemplateData = ctx['DisplayTemplateData'];\n";
+        jsContent += "  ctx['DisplayTemplateData']['TemplateUrl']='" + this.TemplateData.TemplateUrl + "';\n";
+        jsContent += "  ctx['DisplayTemplateData']['TemplateType']='" + this.TemplateData.TemplateType + "';\n";
+        jsContent += "  ctx['DisplayTemplateData']['TargetControlType']=" + JSON.stringify(this.TemplateData.TargetControlType) + ";\n";
         jsContent += "  this.DisplayTemplateData = ctx['DisplayTemplateData'];\n";
         jsContent += "\n";
-        if (templateInfo.TemplateType == "Filter") {
-            jsContent += "  ctx['DisplayTemplateData']['CompatibleSearchDataTypes']=" + JSON.stringify(templateInfo.CompatibleSearchDataTypes) + ";\n";
-            jsContent += "  ctx['DisplayTemplateData']['CompatibleManagedProperties']=" + JSON.stringify(templateInfo.CompatibleManagedProperties) + ";\n";
+        if (this.TemplateData.TemplateType == "Filter") {
+            jsContent += "  ctx['DisplayTemplateData']['CompatibleSearchDataTypes']=" + JSON.stringify(this.TemplateData.CompatibleSearchDataTypes) + ";\n";
+            jsContent += "  ctx['DisplayTemplateData']['CompatibleManagedProperties']=" + JSON.stringify(this.TemplateData.CompatibleManagedProperties) + ";\n";
         }
-        if (templateInfo.TemplateType == "Item") {
-            jsContent += "  ctx['DisplayTemplateData']['ManagedPropertyMapping']=" + JSON.stringify(templateInfo.ManagedPropertyMapping) + ";\n";
+        if (this.TemplateData.TemplateType == "Item") {
+            jsContent += "  ctx['DisplayTemplateData']['ManagedPropertyMapping']=" + JSON.stringify(this.TemplateData.ManagedPropertyMapping) + ";\n";
             jsContent += "  var cachePreviousItemValuesFunction = ctx['ItemValues'];\n";
             jsContent += "  ctx['ItemValues'] = function(slotOrPropName) {\n";
             jsContent += "    return Srch.ValueInfo.getCachedCtxItemValue(ctx, slotOrPropName)\n";
@@ -172,7 +188,7 @@ var DisplayTemplateTransformer = (function () {
         jsContent += "  ms_outHtml.push(''";
         var currentPos = this.StartHtmlPos;
         this.PositionMap.push({ js: jsContent.length, html: currentPos });
-        var htmlLines = htmlToTransform.split('\n');
+        var htmlLines = this.HtmlToTransform.split('\n');
         while (htmlLines.length > 0) {
             this.CurrentLine = htmlLines.shift();
             this.ResetIndexes();
@@ -213,18 +229,23 @@ var DisplayTemplateTransformer = (function () {
             currentPos += this.CurrentLine.length + 1;
         }
         jsContent += ");\n";
-        if (templateInfo.TemplateType == "Item")
+        if (this.TemplateData.TemplateType == "Item")
             jsContent += "  ctx['ItemValues'] = cachePreviousItemValuesFunction;\n";
         jsContent += "  ctx['DisplayTemplateData'] = cachePreviousTemplateData;\n";
         jsContent += "  return ms_outHtml.join('');\n";
         jsContent += "};\n";
-        jsContent += "\n        function RegisterTemplate_" + uniqueId + "() {\n            if (\"undefined\" != typeof (Srch) && \"undefined\" != typeof (Srch.U) && typeof(Srch.U.registerRenderTemplateByName) == \"function\") {\n                Srch.U.registerRenderTemplateByName(\"" + templateName + "\", DisplayTemplate_" + uniqueId + ");\n                Srch.U.registerRenderTemplateByName(\"" + templateInfo.TemplateUrl + "\", DisplayTemplate_" + uniqueId + ");\n            }\n        }\n        RegisterTemplate_" + uniqueId + "();";
+        jsContent += "\n        function RegisterTemplate_" + this.UniqueId + "() {\n            if (\"undefined\" != typeof (Srch) && \"undefined\" != typeof (Srch.U) && typeof(Srch.U.registerRenderTemplateByName) == \"function\") {\n                Srch.U.registerRenderTemplateByName(\"" + this.TemplateName + "\", DisplayTemplate_" + this.UniqueId + ");\n                Srch.U.registerRenderTemplateByName(\"" + this.TemplateData.TemplateUrl + "\", DisplayTemplate_" + this.UniqueId + ");\n            }";
+        this.ScriptBlockPosInJs = jsContent.length;
+        jsContent += this.ScriptBlockContent;
+        jsContent += "}\n        RegisterTemplate_" + this.UniqueId + "();";
         this.PositionMap.push({ js: jsContent.length, html: currentPos });
         return jsContent;
     };
     DisplayTemplateTransformer.prototype.GetPositionInHtml = function (posInJs) {
         if (this.PositionMap.length == 0)
             return posInJs;
+        if (this.ScriptBlockContent.length > 0 && this.ScriptBlockPosInJs <= posInJs && posInJs < this.ScriptBlockPosInJs + this.ScriptBlockContent.length)
+            return this.ScriptBlockPosInHtml + posInJs - this.ScriptBlockPosInJs;
         for (var i = 0; i < this.PositionMap.length - 1; i++) {
             if (this.PositionMap[i].js <= posInJs && posInJs < this.PositionMap[i + 1].js) {
                 return this.PositionMap[i].html + posInJs - this.PositionMap[i].js;
@@ -235,6 +256,8 @@ var DisplayTemplateTransformer = (function () {
     DisplayTemplateTransformer.prototype.GetPositionInJs = function (posInHtml) {
         if (this.PositionMap.length == 0)
             return posInHtml;
+        if (this.ScriptBlockContent.length > 0 && this.ScriptBlockPosInHtml <= posInHtml && posInHtml < this.ScriptBlockPosInHtml + this.ScriptBlockContent.length)
+            return this.ScriptBlockPosInJs + posInHtml - this.ScriptBlockPosInHtml;
         for (var i = 0; i < this.PositionMap.length - 1; i++) {
             if (this.PositionMap[i].html <= posInHtml && posInHtml < this.PositionMap[i + 1].html) {
                 return this.PositionMap[i].js + posInHtml - this.PositionMap[i].html;
@@ -911,17 +934,12 @@ var CSREditor;
             var url = this.fileName;
             if (url != null) {
                 var text = cm.getValue();
-                var match = text.match(/<div[^>]+>/);
-                var divtag_endpos = 0;
-                if (match != null)
-                    divtag_endpos = match.index + match[0].length;
-                var transformer = new DisplayTemplateTransformer(divtag_endpos);
+                var transformer = new DisplayTemplateTransformer(text, this.filesList.currentFile.displayTemplateUniqueId, this.filesList.currentFile.displayTemplateData);
                 if (isTS)
                     this.filesList.refreshCSR(url, this.typeScriptService.getJs());
                 else if (isHtml) {
                     try {
-                        var div = $(text).filter('div');
-                        var jsContent = transformer.Transform(div.html(), div.attr('id'), this.filesList.currentFile.displayTemplateUniqueId, this.filesList.currentFile.displayTemplateData);
+                        var jsContent = transformer.Transform();
                         this.filesList.refreshCSR(url, jsContent);
                         this.typeScriptService.scriptChanged(jsContent, 0, 0);
                     }

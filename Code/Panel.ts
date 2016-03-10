@@ -151,12 +151,7 @@
             if (url != null) {
 
                 var text = cm.getValue();
-
-                var match = text.match(/<div[^>]+>/);
-                var divtag_endpos = 0;
-                if (match != null)
-                    divtag_endpos = match.index + match[0].length;
-                var transformer = new DisplayTemplateTransformer(divtag_endpos);
+                var transformer = new DisplayTemplateTransformer(text, this.filesList.currentFile.displayTemplateUniqueId, this.filesList.currentFile.displayTemplateData);
 
                 if (isTS)
                     this.filesList.refreshCSR(url, this.typeScriptService.getJs());
@@ -164,12 +159,7 @@
                 {
                     try
                     {
-                        var div = $(text).filter('div');
-                        var jsContent = transformer.Transform(
-                            div.html(),
-                            div.attr('id'),
-                            this.filesList.currentFile.displayTemplateUniqueId,
-                            this.filesList.currentFile.displayTemplateData);
+                        var jsContent = transformer.Transform();
                         
                         this.filesList.refreshCSR(url, jsContent);
                         this.typeScriptService.scriptChanged(jsContent, 0, 0);

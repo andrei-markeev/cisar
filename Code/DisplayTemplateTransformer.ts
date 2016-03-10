@@ -34,44 +34,70 @@ class DisplayTemplateTransformer
     private PreviousState: TransformState;
     private NextTokenType: TransformIndexType;
     private StartHtmlPos: number;
+    private HtmlToTransform: string;
     private PositionMap: { js: number, html: number }[];
+    private UniqueId: string;
+    private TemplateData: any;
+    private TemplateName: string;
+    private ScriptBlockContent: string;
+    private ScriptBlockPosInHtml: number;
+    private ScriptBlockPosInJs: number;
     
     private static tokenIndices: TransformIndexType[] = [
       TransformIndexType.CodeBeginToken, TransformIndexType.CodeEndToken,
       TransformIndexType.RenderBeginToken, TransformIndexType.RenderEndToken
     ];
     
-    constructor(startHtmlPos: number)
+    constructor(html: string, uniqueId: string, templateData: any)
     {
-        this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
+        var match = html.match(/<div[^>]*>/);
+        var divtag_endpos = 0;
+        if (match != null)
+            divtag_endpos = match.index + match[0].length;
         this.PositionMap = [];
-        this.StartHtmlPos = startHtmlPos;
+        this.StartHtmlPos = divtag_endpos;
+
+        match = html.match(/<script[^>]*>/);
+        var scripttag_endpos = 0;
+        if (match != null)
+            scripttag_endpos = match.index + match[0].length;
+        this.ScriptBlockPosInHtml = scripttag_endpos;
+        
+        var html_doc = $(html);
+        var div = html_doc.filter('div');
+        this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
+        
+        this.UniqueId = uniqueId;
+        this.TemplateData = templateData;
+        this.TemplateName = div.attr('id');
+        this.HtmlToTransform = div.html();
+        this.ScriptBlockContent = html_doc.filter('script').html();
     }
         
-    public Transform(htmlToTransform: string, templateName: string, uniqueId: string, templateInfo: any): string
+    public Transform(): string
     {
         var jsContent = "";
 
-        jsContent += "window.DisplayTemplate_" + uniqueId + " = function(ctx) {\n";
+        jsContent += "window.DisplayTemplate_" + this.UniqueId + " = function(ctx) {\n";
         jsContent += "  var ms_outHtml=[];\n";
         jsContent += "  var cachePreviousTemplateData = ctx['DisplayTemplateData'];\n";
         jsContent += "  ctx['DisplayTemplateData'] = new Object();\n";
-        jsContent += "  DisplayTemplate_" +  uniqueId + ".DisplayTemplateData = ctx['DisplayTemplateData'];\n";
-        jsContent += "  ctx['DisplayTemplateData']['TemplateUrl']='" + templateInfo.TemplateUrl + "';\n";
-        jsContent += "  ctx['DisplayTemplateData']['TemplateType']='" + templateInfo.TemplateType + "';\n";
-        jsContent += "  ctx['DisplayTemplateData']['TargetControlType']=" + JSON.stringify(templateInfo.TargetControlType) + ";\n";
+        jsContent += "  DisplayTemplate_" +  this.UniqueId + ".DisplayTemplateData = ctx['DisplayTemplateData'];\n";
+        jsContent += "  ctx['DisplayTemplateData']['TemplateUrl']='" + this.TemplateData.TemplateUrl + "';\n";
+        jsContent += "  ctx['DisplayTemplateData']['TemplateType']='" + this.TemplateData.TemplateType + "';\n";
+        jsContent += "  ctx['DisplayTemplateData']['TargetControlType']=" + JSON.stringify(this.TemplateData.TargetControlType) + ";\n";
         jsContent += "  this.DisplayTemplateData = ctx['DisplayTemplateData'];\n";
         jsContent += "\n";
         
-        if (templateInfo.TemplateType == "Filter")
+        if (this.TemplateData.TemplateType == "Filter")
         {
-            jsContent += "  ctx['DisplayTemplateData']['CompatibleSearchDataTypes']=" + JSON.stringify(templateInfo.CompatibleSearchDataTypes) + ";\n";
-            jsContent += "  ctx['DisplayTemplateData']['CompatibleManagedProperties']=" + JSON.stringify(templateInfo.CompatibleManagedProperties) + ";\n";
+            jsContent += "  ctx['DisplayTemplateData']['CompatibleSearchDataTypes']=" + JSON.stringify(this.TemplateData.CompatibleSearchDataTypes) + ";\n";
+            jsContent += "  ctx['DisplayTemplateData']['CompatibleManagedProperties']=" + JSON.stringify(this.TemplateData.CompatibleManagedProperties) + ";\n";
         }
         
-        if (templateInfo.TemplateType == "Item")
+        if (this.TemplateData.TemplateType == "Item")
         {
-            jsContent += "  ctx['DisplayTemplateData']['ManagedPropertyMapping']=" + JSON.stringify(templateInfo.ManagedPropertyMapping) + ";\n";
+            jsContent += "  ctx['DisplayTemplateData']['ManagedPropertyMapping']=" + JSON.stringify(this.TemplateData.ManagedPropertyMapping) + ";\n";
             jsContent += "  var cachePreviousItemValuesFunction = ctx['ItemValues'];\n";
             jsContent += "  ctx['ItemValues'] = function(slotOrPropName) {\n";
             jsContent += "    return Srch.ValueInfo.getCachedCtxItemValue(ctx, slotOrPropName)\n";
@@ -87,7 +113,7 @@ class DisplayTemplateTransformer
         var currentPos = this.StartHtmlPos;
         this.PositionMap.push({ js: jsContent.length, html: currentPos });
 
-        var htmlLines = htmlToTransform.split('\n');
+        var htmlLines = this.HtmlToTransform.split('\n');
         while (htmlLines.length > 0)
         {
             this.CurrentLine = htmlLines.shift();
@@ -141,7 +167,7 @@ class DisplayTemplateTransformer
         }
         jsContent += ");\n";
         
-        if (templateInfo.TemplateType == "Item")
+        if (this.TemplateData.TemplateType == "Item")
             jsContent += "  ctx['ItemValues'] = cachePreviousItemValuesFunction;\n";
         
         jsContent += "  ctx['DisplayTemplateData'] = cachePreviousTemplateData;\n";
@@ -149,13 +175,15 @@ class DisplayTemplateTransformer
         jsContent += "};\n";
         
         jsContent += `
-        function RegisterTemplate_${uniqueId}() {
+        function RegisterTemplate_${this.UniqueId}() {
             if ("undefined" != typeof (Srch) && "undefined" != typeof (Srch.U) && typeof(Srch.U.registerRenderTemplateByName) == "function") {
-                Srch.U.registerRenderTemplateByName("${templateName}", DisplayTemplate_${uniqueId});
-                Srch.U.registerRenderTemplateByName("${templateInfo.TemplateUrl}", DisplayTemplate_${uniqueId});
-            }
-        }
-        RegisterTemplate_${uniqueId}();`;
+                Srch.U.registerRenderTemplateByName("${this.TemplateName}", DisplayTemplate_${this.UniqueId});
+                Srch.U.registerRenderTemplateByName("${this.TemplateData.TemplateUrl}", DisplayTemplate_${this.UniqueId});
+            }`;
+        this.ScriptBlockPosInJs = jsContent.length;
+        jsContent += this.ScriptBlockContent;
+        jsContent += `}
+        RegisterTemplate_${this.UniqueId}();`;
         
         this.PositionMap.push({ js: jsContent.length, html: currentPos });
         
@@ -166,6 +194,8 @@ class DisplayTemplateTransformer
     {
         if (this.PositionMap.length == 0)
             return posInJs;
+        if (this.ScriptBlockContent.length > 0 && this.ScriptBlockPosInJs <= posInJs && posInJs < this.ScriptBlockPosInJs + this.ScriptBlockContent.length)
+            return this.ScriptBlockPosInHtml + posInJs - this.ScriptBlockPosInJs;
         for(var i=0;i<this.PositionMap.length-1;i++)
         {
             if (this.PositionMap[i].js <= posInJs && posInJs < this.PositionMap[i+1].js)
@@ -180,6 +210,8 @@ class DisplayTemplateTransformer
     {
         if (this.PositionMap.length == 0)
             return posInHtml;
+        if (this.ScriptBlockContent.length > 0 && this.ScriptBlockPosInHtml <= posInHtml && posInHtml < this.ScriptBlockPosInHtml + this.ScriptBlockContent.length)
+            return this.ScriptBlockPosInJs + posInHtml - this.ScriptBlockPosInHtml;
         for(var i=0;i<this.PositionMap.length-1;i++)
         {
             if (this.PositionMap[i].html <= posInHtml && posInHtml < this.PositionMap[i+1].html)
