@@ -39,9 +39,6 @@
         <!-- ko if: !personalView && webparts.length == 0 -->
             <div class="hint">
                 No CSR-enabled webparts found on the page.
-                <div>
-                    <button data-bind="click: reload"><i class="fa fa-refresh"></i> Reload</button>
-                </div>
             </div>
         <!-- /ko -->
         <!-- ko foreach: webparts -->
@@ -96,6 +93,9 @@
                     <span data-bind="text: shortUrl"></span>
                 </div>
                 <!-- /ko -->
+            </div>
+            <div>
+                <button data-bind="click: reload"><i class="fa fa-refresh"></i> Reload</button>
             </div>
         </div>
     <div class="separator"></div>

@@ -5,9 +5,6 @@ class DisplayTemplateTokenSyntax
 
     public static get TokenRenderExpressionBegin(): string { return "_#="; }
     public static get TokenRenderExpressionEnd(): string { return "=#_"; }
-
-    public static get TokenRegexPreserveLogicScriptQuotes(): string { return "\"(?<=<!--#_([^#]*))'\""; }
-    public static get TokenRegexPreserveRenderingScriptQuotes(): string { return "\"(?<=_#=([^#]*))'\""; }
 }
 
 enum TransformState

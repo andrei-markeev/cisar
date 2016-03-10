@@ -41,7 +41,7 @@ module CSREditor {
                     }
 
                     webparts.push({
-                        title: controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
+                        title: 'LFWP ' + controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: true,
@@ -62,7 +62,7 @@ module CSREditor {
                     var ctx = window["ctx" + ctxNumber];
 
                     webparts.push({
-                        title: 'View: ' + ctx.ListTitle,
+                        title: 'XLV: ' + ctx.ListTitle,
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: false,
@@ -108,7 +108,11 @@ module CSREditor {
                 window["g_Cisar_JSLinkUrls"] = {};
             }
 
-            var displayTemplates = Object.keys(window).filter(k => k.indexOf('DisplayTemplate_') == 0 && window[k].DisplayTemplateData).map(k => { return {
+            var displayTemplateFuncs = Object.keys(window).filter(k => k.indexOf('DisplayTemplate_') == 0);
+            displayTemplateFuncs.filter(k => window[k].DisplayTemplateData == null).forEach(k => {
+                try { window[k]({}); } finally {}
+            });
+            var displayTemplates = displayTemplateFuncs.filter(k => window[k].DisplayTemplateData).map(k => { return {
                 uniqueId: k.substr("DisplayTemplate_".length),
                 info: window[k].DisplayTemplateData
             }});

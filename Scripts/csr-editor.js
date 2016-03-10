@@ -120,16 +120,6 @@ var DisplayTemplateTokenSyntax = (function () {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenRegexPreserveLogicScriptQuotes", {
-        get: function () { return "\"(?<=<!--#_([^#]*))'\""; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(DisplayTemplateTokenSyntax, "TokenRegexPreserveRenderingScriptQuotes", {
-        get: function () { return "\"(?<=_#=([^#]*))'\""; },
-        enumerable: true,
-        configurable: true
-    });
     return DisplayTemplateTokenSyntax;
 })();
 var TransformState;
@@ -1019,7 +1009,7 @@ var CSREditor;
                         fields.push(f);
                     }
                     webparts.push({
-                        title: controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
+                        title: 'LFWP ' + controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: true,
@@ -1037,7 +1027,7 @@ var CSREditor;
                     var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
                     var ctx = window["ctx" + ctxNumber];
                     webparts.push({
-                        title: 'View: ' + ctx.ListTitle,
+                        title: 'XLV: ' + ctx.ListTitle,
                         wpqId: wpqId,
                         wpId: wpId,
                         isListForm: false,
@@ -1077,7 +1067,14 @@ var CSREditor;
             else {
                 window["g_Cisar_JSLinkUrls"] = {};
             }
-            var displayTemplates = Object.keys(window).filter(function (k) { return k.indexOf('DisplayTemplate_') == 0 && window[k].DisplayTemplateData; }).map(function (k) {
+            var displayTemplateFuncs = Object.keys(window).filter(function (k) { return k.indexOf('DisplayTemplate_') == 0; });
+            displayTemplateFuncs.filter(function (k) { return window[k].DisplayTemplateData == null; }).forEach(function (k) {
+                try {
+                    window[k]({});
+                }
+                finally { }
+            });
+            var displayTemplates = displayTemplateFuncs.filter(function (k) { return window[k].DisplayTemplateData; }).map(function (k) {
                 return {
                     uniqueId: k.substr("DisplayTemplate_".length),
                     info: window[k].DisplayTemplateData
