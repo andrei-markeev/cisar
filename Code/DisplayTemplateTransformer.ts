@@ -62,16 +62,24 @@ class DisplayTemplateTransformer
         if (match != null)
             scripttag_endpos = match.index + match[0].length;
         this.ScriptBlockPosInHtml = scripttag_endpos;
-        
-        var html_doc = $(html);
-        var div = html_doc.filter('div');
+
         this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
         
         this.UniqueId = uniqueId;
         this.TemplateData = templateData;
-        this.TemplateName = div.attr('id');
-        this.HtmlToTransform = div.html();
-        this.ScriptBlockContent = html_doc.filter('script').html();
+        
+        if (divtag_endpos)
+        {
+            var html_doc = $(html);
+            var div = html_doc.filter('div');
+            this.HtmlToTransform = div.html();
+            this.ScriptBlockContent = html_doc.filter('script').html();
+            this.TemplateName = div.attr('id');
+        } else {
+            this.HtmlToTransform = "";
+            this.ScriptBlockContent = html;
+            this.TemplateName = uniqueId;
+        }
     }
         
     public Transform(): string

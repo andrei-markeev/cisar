@@ -17,7 +17,7 @@ module CSREditor {
 
             var webparts = [];
             var wp_properties = [];
-            var wpqId = 2;
+            var wpqId = 1;
 
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
@@ -301,7 +301,7 @@ module CSREditor {
                 SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
                 savedRegisterOverridesMethod(options);
 
-                var wpqId = 2;
+                var wpqId = 1;
                 while ($get("WebPartWPQ" + wpqId) != null) {
                     var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
                     if (window["WPQ" + wpqId + "FormCtx"]) {
