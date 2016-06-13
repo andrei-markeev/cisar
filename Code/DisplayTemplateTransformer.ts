@@ -52,15 +52,25 @@ class DisplayTemplateTransformer
     {
         var match = html.match(/<div[^>]*>/);
         var divtag_endpos = 0;
-        if (match != null)
+        this.TemplateName = uniqueId;
+        if (match != null) {
             divtag_endpos = match.index + match[0].length;
+        
+            match = match[0].match(/id\s*=\s*["'](\w+)/);
+            if (match != null)
+                this.TemplateName = match[1];
+        }
+
         this.PositionMap = [];
         this.StartHtmlPos = divtag_endpos;
 
         match = html.match(/<script[^>]*>/);
         var scripttag_endpos = 0;
-        if (match != null)
+        var scripttag_contentslength = 0;
+        if (match != null) {
             scripttag_endpos = match.index + match[0].length;
+            scripttag_contentslength = html.indexOf("</script>", scripttag_endpos) - scripttag_endpos;
+        }
         this.ScriptBlockPosInHtml = scripttag_endpos;
 
         this.CurrentState = this.PreviousState = TransformState.HtmlBlock;
@@ -70,15 +80,11 @@ class DisplayTemplateTransformer
         
         if (divtag_endpos)
         {
-            var html_doc = $(html);
-            var div = html_doc.filter('div');
-            this.HtmlToTransform = div.html();
-            this.ScriptBlockContent = html_doc.filter('script').html();
-            this.TemplateName = div.attr('id');
+            this.HtmlToTransform = html.substr(divtag_endpos);
+            this.ScriptBlockContent = scripttag_endpos == 0 ? "" : html.substr(scripttag_endpos, scripttag_contentslength);
         } else {
             this.HtmlToTransform = "";
             this.ScriptBlockContent = html;
-            this.TemplateName = uniqueId;
         }
     }
         
@@ -122,6 +128,7 @@ class DisplayTemplateTransformer
         this.PositionMap.push({ js: jsContent.length, html: currentPos });
 
         var htmlLines = this.HtmlToTransform.split('\n');
+        var divs = 0;
         while (htmlLines.length > 0)
         {
             this.CurrentLine = htmlLines.shift();
@@ -133,6 +140,22 @@ class DisplayTemplateTransformer
                 
                 var segmentContent = this.CurrentLine.substr(this.Indexes[TransformIndexType.ContentStart], this.Indexes[TransformIndexType.ContentEnd] - this.Indexes[TransformIndexType.ContentStart]);
                 
+                if (this.CurrentState == TransformState.HtmlBlock)
+                {
+                    var nextDivPos = -1;
+                    while ((nextDivPos = segmentContent.indexOf("<div", nextDivPos+1)) > -1)
+                        divs++;
+
+                    nextDivPos = -1;
+                    while ((nextDivPos = segmentContent.indexOf("</div", nextDivPos+1)) > -1)
+                        divs--;
+
+                    if (divs < 0) {
+                        htmlLines = [];
+                        break;
+                    }
+                }
+
                 if (this.CurrentState == TransformState.LogicBlock && this.PreviousState == TransformState.HtmlBlock)
                     jsContent += ");";
                 else if (this.CurrentState == TransformState.HtmlBlock && this.PreviousState == TransformState.LogicBlock)
@@ -278,7 +301,7 @@ class DisplayTemplateTransformer
         }
         if (flag)
         {
-            console.log("FindSegmentTypeAndContent: State changed as a shortcut to "+this.CurrentState+" with segment content now starting at " + this.Indexes[TransformIndexType.ContentStart]);
+            //console.log("FindSegmentTypeAndContent: State changed as a shortcut to "+this.CurrentState+" with segment content now starting at " + this.Indexes[TransformIndexType.ContentStart]);
             this.FindLineTokenIndices();
         }
         this.FindNextTokenTypeAndContentEnd();
