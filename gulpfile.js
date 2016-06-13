@@ -13,6 +13,7 @@ gulp.task('create-libs-d-ts', function () {
     return gulp.src([
             'Scripts/typings/lib.d.ts',
             'Scripts/typings/sharepoint/SharePoint.d.ts',
+            'Scripts/typings/sharepoint/Search.ClientControls.d.ts',
             'Scripts/typings/jquery/jquery.d.ts',
             'Scripts/typings/knockout/knockout.d.ts'
         ])
