@@ -29195,6 +29195,61 @@ declare module Srch
         }
     }
 
+    export class ScriptApplicationManager
+    {
+        static get_current(): ScriptApplicationManager;
+        static get_clientRuntimeContext(): SP.ClientRuntimeContext;
+        /** Returns server-relative link to _layouts/EditUserPref.aspx */
+        get_preferencesUrl(): string;
+        /** Returns server-relative link to _layouts/manageresulttypes.aspx */
+        get_resultTypesUrl(): string;
+        /** Returns server-relative link to _layouts/DesignDisplayTemplates.aspx */
+        get_displayTemplatesUrl(): string;
+        /** Returns server-relative link to _layouts/listqueryrules.aspx */
+        get_queryRulesUrl(): string;
+        /** Returns server-relative link to _layouts/manageresultsources.aspx */
+        get_resultSourcesUrl(): string;
+        /** Returns absolute URL of the current page (without ? and # parts) */
+        get_pagePath(): string;
+
+        /** Adds handler for the preload event */
+        add_preLoad(handlerFunction: Function): void;
+        /** Removes handler for the preload event */
+        remove_preLoad(handlerFunction: Function): void;
+        /** Raises the preload event */
+        raisePreLoadEvent();
+
+        /** Adds handler for the load event */
+        add_load(handlerFunction: Function): void;
+        /** Removes handler for the load event */
+        remove_load(handlerFunction: Function): void;
+        /** Raises the load event */
+        raiseLoadEvent();
+
+        /** Adds handler for the postload event */
+        add_postLoad(handlerFunction: Function): void;
+        /** Removes handler for the postload event */
+        remove_postLoad(handlerFunction: Function): void;
+        /** Raises the postload event */
+        raisePostLoadEvent();
+
+        initialize();
+        dispose();
+
+        /** Registers DisplayControl, DataProvider or SearchBox in the system.
+         * After registration the controls will be correctly processed in the page search context.
+         */
+        registerClientControl(clientControl: DisplayControl | DataProvider | SearchBox);
+        
+        /** Puts specified hash-key address into the current page location.
+         * @param url The hash-key, e.g. '#k=test'
+         */
+        navigateTo(url: string);
+
+        /** Gets the current search session ID from the cookies (if session ID does not exist in the cookies yet - it will be added) */
+        get_searchSessionID();
+    }
+
     export class Res
     {
         static sb_ResultsPageTitle: string;
@@ -29833,7 +29888,6 @@ declare module Srch
     }
 
 }
-
 
 // Type definitions for jQuery 1.10.x / 2.0.x
 // Project: http://jquery.com/
