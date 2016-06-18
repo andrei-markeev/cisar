@@ -29,6 +29,8 @@ module CSREditor {
         public domainPart: string = "";
 
         public personalView: boolean = false;
+        public webpartsLoadError: string = "";
+        public pageContextInfoError: boolean = false;
 
         constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
             this.loadFileToEditor = loadUrlToEditor;
@@ -57,7 +59,6 @@ module CSREditor {
 
         public reload() {
 
-            this.loading = true;
             this.webparts = [];
             this.otherFiles = [];
             this.displayTemplates = [];
@@ -65,25 +66,33 @@ module CSREditor {
             this.currentFile = null;
             this.personalView = false;
             this.fileError = null;
+            this.webpartsLoadError = "";
+            this.pageContextInfoError = false;
 
+            this.loading = true;
+            
             ChromeIntegration.eval("_spPageContextInfo", (result, errorInfo) => {
-                if (!errorInfo) {
-                    this.siteUrl = result.siteAbsoluteUrl.toLowerCase();
-                    this.webUrl = result.webAbsoluteUrl.toLowerCase();
-                    this.siteServerRelativeUrl = result.siteServerRelativeUrl.toLowerCase();
-                    this.webServerRelativeUrl = result.webServerRelativeUrl.toLowerCase();
-                    this.domainPart = result.siteServerRelativeUrl == '/' ? this.siteUrl : this.siteUrl.replace(result.siteServerRelativeUrl, '');
-
-                    this.pathRelativeToOptions.removeAll();
-                    this.pathRelativeToOptions.push('~sitecollection');
-                    if (result.webServerRelativeUrl != result.siteServerRelativeUrl)
-                        this.pathRelativeToOptions.push('~site');
-
-                    ChromeIntegration.getAllResources(this.siteUrl, (urls: { [url: string]: number; }) => {
-                        this.addOtherFiles(Object.keys(urls));
-                        this.loadWebParts();
-                    });
+                if (errorInfo) {
+                    console.log(errorInfo);
+                    this.pageContextInfoError = true;
+                    this.loading = false;
+                    return;
                 }
+                this.siteUrl = result.siteAbsoluteUrl.toLowerCase();
+                this.webUrl = result.webAbsoluteUrl.toLowerCase();
+                this.siteServerRelativeUrl = result.siteServerRelativeUrl.toLowerCase();
+                this.webServerRelativeUrl = result.webServerRelativeUrl.toLowerCase();
+                this.domainPart = result.siteServerRelativeUrl == '/' ? this.siteUrl : this.siteUrl.replace(result.siteServerRelativeUrl, '');
+
+                this.pathRelativeToOptions.removeAll();
+                this.pathRelativeToOptions.push('~sitecollection');
+                if (result.webServerRelativeUrl != result.siteServerRelativeUrl)
+                    this.pathRelativeToOptions.push('~site');
+
+                ChromeIntegration.getAllResources(this.siteUrl, (urls: { [url: string]: number; }) => {
+                    this.addOtherFiles(Object.keys(urls));
+                    this.loadWebParts();
+                });
             });
 
         }
@@ -93,6 +102,8 @@ module CSREditor {
             CSREditor.ChromeIntegration.eval(SPActions.getCode_listCsrWebparts(), (result, errorInfo) => {
                 if (errorInfo) {
                     console.log(errorInfo);
+                    this.webpartsLoadError = errorInfo.value || JSON.stringify(errorInfo);
+                    this.loading = false;
                     return;
                 }
                 var wpDict: { [id: number]: WebPartModel } = {};

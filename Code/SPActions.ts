@@ -11,10 +11,6 @@ module CSREditor {
         private static listCsrWebparts() {
             var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
 
-            var context = SP.ClientContext.get_current();
-            var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
-            var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-
             var webparts = [];
             var wp_properties = [];
             var wpqId = 1;
@@ -50,11 +46,6 @@ module CSREditor {
                         fields: fields
                     });
 
-                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
-                    var webpart = webpartDef.get_webPart();
-                    var properties = webpart.get_properties();
-                    context.load(properties);
-                    wp_properties.push({ wpqId: wpqId, properties: properties });
 
                 } else if (window["WPQ" + wpqId + "SchemaData"]) {
 
@@ -71,12 +62,6 @@ module CSREditor {
                         listTemplateType: ctx.ListTemplateType
                     });
 
-                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
-                    var webpart = webpartDef.get_webPart();
-                    var properties = webpart.get_properties();
-                    context.load(properties);
-                    wp_properties.push({ wpqId: wpqId, properties: properties });
-
                 }
                 wpqId++;
             }
@@ -84,26 +69,43 @@ module CSREditor {
             delete window["g_Cisar_JSLinkUrls"];
 
             if (webparts.length > 0) {
-                context.executeQueryAsync(
-                    function () {
-                        var urls = {};
-                        for (var i = 0; i < wp_properties.length; i++) {
-                            var urlsString = wp_properties[i].properties.get_item('JSLink') || '';
-                            if (urlsString != '') {
-                                var urlsArray = urlsString.split('|');
-                                for (var x = 0; x < urlsArray.length; x++) {
-                                    urlsArray[x] = SPClientTemplates.Utility.ReplaceUrlTokens(urlsArray[x]);
+
+                SP.SOD.executeFunc("sp.js", "SP.ClientContext", function() {
+
+                    var context = SP.ClientContext.get_current();
+                    var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                    var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+
+                    for (var i=0; i<webparts.length; i++) {
+                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(webparts[i].wpId));
+                        var webpart = webpartDef.get_webPart();
+                        var properties = webpart.get_properties();
+                        context.load(properties);
+                        wp_properties.push({ wpqId: webparts[i].wpqId, properties: properties });
+                    }
+                    
+                    context.executeQueryAsync(
+                        function () {
+                            var urls = {};
+                            for (var i = 0; i < wp_properties.length; i++) {
+                                var urlsString = wp_properties[i].properties.get_item('JSLink') || '';
+                                if (urlsString != '') {
+                                    var urlsArray = urlsString.split('|');
+                                    for (var x = 0; x < urlsArray.length; x++) {
+                                        urlsArray[x] = SPClientTemplates.Utility.ReplaceUrlTokens(urlsArray[x]);
+                                    }
+                                    urls[wp_properties[i].wpqId] = urlsArray;
                                 }
-                                urls[wp_properties[i].wpqId] = urlsArray;
                             }
-                        }
-                        window["g_Cisar_JSLinkUrls"] = urls;
-                    },
-                    function (s, args) {
-                        console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
-                        console.log(webparts);
-                        window["g_Cisar_JSLinkUrls"] = 'error';
-                    });
+                            window["g_Cisar_JSLinkUrls"] = urls;
+                        },
+                        function (s, args) {
+                            console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
+                            console.log(webparts);
+                            window["g_Cisar_JSLinkUrls"] = 'error';
+                        });
+                });
+
             } else {
                 window["g_Cisar_JSLinkUrls"] = {};
             }
@@ -360,16 +362,19 @@ module CSREditor {
             try {
                 eval(content);
                 
-                var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
-                for (var i=0;i<elements.length;i++)
+                if ('Srch' in window && Srch.U)
                 {
-                    var control = Srch.U.getClientComponent(elements[i]);
-                    if (control && control.render)
+                    var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
+                    for (var i=0;i<elements.length;i++)
                     {
-                        while (elements[i].hasChildNodes())
-                            elements[i].removeChild(elements[i].childNodes[0]);
-                        control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(r => delete r.id);
-                        control.render();
+                        var control = Srch.U.getClientComponent(elements[i]);
+                        if (control && control instanceof Srch.DisplayControl)
+                        {
+                            while (elements[i].hasChildNodes())
+                                elements[i].removeChild(elements[i].childNodes[0]);
+                            control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(r => delete r.id);
+                            control.render();
+                        }
                     }
                 }
                 

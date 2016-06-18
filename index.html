@@ -36,7 +36,17 @@
                 Please see <a href="http://sharepoint.stackexchange.com/a/164479/1430" target="_blank">this SharePoint SE answer</a> for details.
             </div>
         <!-- /ko -->
-        <!-- ko if: !personalView && webparts.length == 0 -->
+        <!-- ko if: webpartsLoadError -->
+            <div class="hint">
+                Error loading webparts from the page: <span data-bind="text: webpartsLoadError"></span>
+            </div>
+        <!-- /ko -->
+        <!-- ko if: pageContextInfoError -->
+            <div class="hint">
+                Error loading _spPageContextInfo. Cisar can only be used on SharePoint webpart pages.
+            </div>
+        <!-- /ko -->
+        <!-- ko if: !personalView && !webpartsLoadError && !pageContextInfoError && webparts.length == 0 -->
             <div class="hint">
                 No CSR-enabled webparts found on the page.
             </div>
@@ -63,41 +73,41 @@
                 </div>
                 <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
                 <!-- ko if: loading == false -->
-                <!-- ko foreach: files -->
-                <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                    <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin and unbind from webpart"><i class="fa fa-trash-o"></i></a>
-                    <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
-                    <a data-bind="click: pauseOrResume, clickBubble: false, visible: current" title="pause/resume live CSR preview"><i class="fa" data-bind="css: { 'fa-pause': paused == false, 'fa-play': paused == true }"></i></a>
-                    <span data-bind="text: shortUrl"></span>
-                </div>
+                    <!-- ko foreach: files -->
+                    <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                        <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin and unbind from webpart"><i class="fa fa-trash-o"></i></a>
+                        <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
+                        <a data-bind="click: pauseOrResume, clickBubble: false, visible: current" title="pause/resume live CSR preview"><i class="fa" data-bind="css: { 'fa-pause': paused == false, 'fa-play': paused == true }"></i></a>
+                        <span data-bind="text: shortUrl"></span>
+                    </div>
+                    <!-- /ko -->
                 <!-- /ko -->
-                <!-- /ko -->
+            </div>
+        <!-- /ko -->
+        <div class="header" data-bind="visible: !loading && displayTemplates.length > 0">Display templates</div>
+        <div class="files" data-bind="visible: !loading && displayTemplates.length > 0">
+            <!-- ko foreach: displayTemplates -->
+            <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
+                <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
+                <span data-bind="text: shortUrl"></span>
             </div>
             <!-- /ko -->
-            <div class="header" data-bind="visible: !loading && displayTemplates.length > 0">Display templates</div>
-            <div class="files" data-bind="visible: !loading && displayTemplates.length > 0">
-                <!-- ko foreach: displayTemplates -->
-                <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                    <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
-                    <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
-                    <span data-bind="text: shortUrl"></span>
-                </div>
-                <!-- /ko -->
-            </div>
-            <div class="header other-files" data-bind="visible: !loading && otherFiles.length > 0">Other files on page</div>
-            <div class="files" data-bind="visible: !loading && otherFiles.length > 0">
-                <!-- ko foreach: otherFiles -->
-                <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                    <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
-                    <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
-                    <span data-bind="text: shortUrl"></span>
-                </div>
-                <!-- /ko -->
-            </div>
-            <div>
-                <button data-bind="click: reload"><i class="fa fa-refresh"></i> Reload</button>
-            </div>
         </div>
+        <div class="header other-files" data-bind="visible: !loading && otherFiles.length > 0">Other files on page</div>
+        <div class="files" data-bind="visible: !loading && otherFiles.length > 0">
+            <!-- ko foreach: otherFiles -->
+            <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
+                <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
+                <span data-bind="text: shortUrl"></span>
+            </div>
+            <!-- /ko -->
+        </div>
+        <div>
+            <button data-bind="click: reload"><i class="fa fa-refresh"></i> Reload</button>
+        </div>
+    </div>
     <div class="separator"></div>
     <div class="editor">
         <div class="alert" data-bind="html: fileError, visible: fileError"></div>
