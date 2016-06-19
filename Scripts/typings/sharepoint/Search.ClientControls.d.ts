@@ -1567,3 +1567,55 @@ declare module Srch
     }
 
 }
+
+/** Returns true if the value parameter is null or empty string */
+declare function $isEmptyString(value: string): boolean;
+/** Returns true if the value parameter is null or undefined */
+declare function $isNull(value: any): boolean;
+/** Returns true if the specified item is found in the specified array (uses '===' for comparing) */
+declare function $isInArray(array: any[], item: any): boolean;
+/** Returns true if the specified array is null or empty */
+declare function $isEmptyArray(array: any[]): boolean;
+/** (alias for SP.Utilities.HttpUtility.htmlEncode) */
+declare function $htmlEncode(s: string): string;
+/** (alias for SP.Utilities.HttpUtility.ecmaScriptStringLiteralEncode) */
+declare function $scriptEncode(s: string): string;
+/** (alias for SP.Utilities.HttpUtility.urlKeyValueEncode) */
+declare function $urlKeyValueEncode(s: string): string;
+/** (alias for SP.Utilities.HttpUtility.urlPathEncode) */
+declare function $urlPathEncode(s: string): string;
+/** Ensures that url has correct protocol or is a relative URL, and html-encodes it.
+ * If URL is incorrect, returns empty string. */
+declare function $urlHtmlEncode(s: string): string;
+
+declare function $imgSrcUrl(p: any): string;
+declare function $contentLineText(p: any): any;
+
+/** Returns the ClientControl associated with specified DOM element (alias for Srch.U.getClientComponent) */
+declare function $getClientControl(e: Element): Srch.ClientControl;
+
+/** (alias for Srch.U.getResultObject) */
+declare function $getResultItem(id: string): any;
+/** (alias for Srch.U.setResultObject) */
+declare function $setResultItem(id: string, resultObject: any);
+/** (alias for Srch.U.getResultObject) */
+declare function $getResultObject(id: string): any;
+/** (alias for Srch.U.setResultObject) */
+declare function $setResultObject(id: string, resultObject: any);
+/** (alias for Srch.U.findResultObjectFromDOM) */
+declare function $findResultObjectFromDOM(e: Element, type: string);
+
+declare function $getItemValue(ctx: any, nameToLookup: string): any;
+declare function $getCachedItemValue(ctx: any, nameToLookup: string): any;
+
+declare function $includeScript(templateLink: string, relativeLink: string);
+declare function $includeCSS(templateLink: string, scriptLink: string);
+declare function $includeLanguageScript(templateLink: string, scriptLink: string);
+/** Registers in system resources defined by the dictionary object (alias for Srch.U.registerResourceDictionary) */
+declare function $registerResourceDictionary(locale:string, dict: {[key: string]: string});
+/** Retrieves localized string with the specified id */
+declare function $resource(id: string);
+/** (calls Srch.U.setItemRenderWrapper) */
+declare function $setItemWrapperCallback(renderCtx, itemWrapperFunction);
+/** (calls Srch.U.addRenderContextCallback) */
+declare function $addRenderContextCallback(renderCtx, itemWrapperFunction);
