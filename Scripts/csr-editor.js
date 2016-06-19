@@ -775,7 +775,7 @@ var CSREditor;
                     filesList.setEditorText(file.url, templateText, true);
                 }
                 else if (result == "existing") {
-                    var fullUrl = (filesList.siteUrl + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
+                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
                     webpart.appendFileToList(fullUrl, false);
                 }
             });
