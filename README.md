@@ -18,12 +18,12 @@ Alternatively, you can install it manually from the source code:
 
 Using
 -----
- 1. Navigate to your SharePoint portal, to the page where you have list view or list form that you want to customize.
+ 1. Navigate to your SharePoint portal, to the page where you have list view or list form or search results webpart that you want to customize.
  2. Open Developer Tools window (F12).
  3. Switch to "Cisar" tab
- 4. Click plus button in the left panel and create a file.
+ 4. Either create a new file or select existing one in the left side panel
  5. Start writing customizations
 
 Roadmap
 -------
- 1. Add support for Display Templates
+ 1. Add support for creating Display Templates and attaching them to webparts
