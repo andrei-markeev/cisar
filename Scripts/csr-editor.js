@@ -1041,7 +1041,7 @@ var CSREditor;
             var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
             var webparts = [];
             var wp_properties = [];
-            var wpqId = 1;
+            var wpqId = $get("MSOZoneCell_WebPartWPQ1") != null ? 1 : 2;
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
                 return { webparts: [], displayTemplates: [] };

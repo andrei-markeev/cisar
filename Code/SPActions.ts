@@ -13,7 +13,7 @@ module CSREditor {
 
             var webparts = [];
             var wp_properties = [];
-            var wpqId = 1;
+            var wpqId = $get("MSOZoneCell_WebPartWPQ1") != null ? 1 : 2;
 
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
