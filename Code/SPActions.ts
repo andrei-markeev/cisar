@@ -13,14 +13,15 @@ module CSREditor {
 
             var webparts = [];
             var wp_properties = [];
-            var wpqId = $get("MSOZoneCell_WebPartWPQ1") != null ? 1 : 2;
 
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
                 return { webparts: [], displayTemplates: []};
             }
 
-            while ($get("MSOZoneCell_WebPartWPQ" + wpqId) != null) {
+            var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
+            for (var i=0; i < webpartZones.length; i++) {
+                var wpqId = +webpartZones[i].attributes["id"].value.substr("MSOZoneCell_WebPartWPQ".length);
                 var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
                 if (window["WPQ" + wpqId + "FormCtx"]) {
 
