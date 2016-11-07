@@ -304,9 +304,9 @@ module CSREditor {
                 SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
                 savedRegisterOverridesMethod(options);
 
-                var wpqId = 1;
-                while ($get("WebPartWPQ" + wpqId) != null) {
-                    var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
+                var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
+                for (var i=0; i < webpartZones.length; i++) {
+                    var wpqId = +webpartZones[i].attributes["id"].value.substr("MSOZoneCell_WebPartWPQ".length);
                     if (window["WPQ" + wpqId + "FormCtx"]) {
 
                         var ctx = window["WPQ" + wpqId + "FormCtx"];

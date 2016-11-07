@@ -94,7 +94,7 @@ var CSREditor;
             return true;
         };
         return ChromeIntegration;
-    })();
+    }());
     CSREditor.ChromeIntegration = ChromeIntegration;
 })(CSREditor || (CSREditor = {}));
 var DisplayTemplateTokenSyntax = (function () {
@@ -121,7 +121,7 @@ var DisplayTemplateTokenSyntax = (function () {
         configurable: true
     });
     return DisplayTemplateTokenSyntax;
-})();
+}());
 var TransformState;
 (function (TransformState) {
     TransformState[TransformState["HtmlBlock"] = 0] = "HtmlBlock";
@@ -372,7 +372,7 @@ var DisplayTemplateTransformer = (function () {
         TransformIndexType.RenderBeginToken, TransformIndexType.RenderEndToken
     ];
     return DisplayTemplateTransformer;
-})();
+}());
 var CSREditor;
 (function (CSREditor) {
     var FileModel = (function () {
@@ -419,7 +419,7 @@ var CSREditor;
             this.paused = !this.paused;
         };
         return FileModel;
-    })();
+    }());
     CSREditor.FileModel = FileModel;
 })(CSREditor || (CSREditor = {}));
 var B64;
@@ -607,7 +607,7 @@ var CSREditor;
             }
         };
         return FilesList;
-    })();
+    }());
     CSREditor.FilesList = FilesList;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
@@ -747,7 +747,7 @@ var CSREditor;
             }
         };
         return IntellisenseHelper;
-    })();
+    }());
     CSREditor.IntellisenseHelper = IntellisenseHelper;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
@@ -833,7 +833,7 @@ var CSREditor;
                 '});\r\n';
         };
         return NewFileHelper;
-    })();
+    }());
     CSREditor.NewFileHelper = NewFileHelper;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
@@ -1025,7 +1025,7 @@ var CSREditor;
         };
         Panel.checkSyntaxTimeout = 0;
         return Panel;
-    })();
+    }());
     CSREditor.Panel = Panel;
 })(CSREditor || (CSREditor = {}));
 var B64;
@@ -1280,9 +1280,9 @@ var CSREditor;
                 substract_objects(savedTemplateOverrides, { OnPreRender: window["g_templateOverrides_" + fileName].OnPreRender, OnPostRender: window["g_templateOverrides_" + fileName].OnPostRender });
                 SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
                 savedRegisterOverridesMethod(options);
-                var wpqId = 1;
-                while ($get("WebPartWPQ" + wpqId) != null) {
-                    var wpId = $get("WebPartWPQ" + wpqId).attributes["webpartid"].value;
+                var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
+                for (var i = 0; i < webpartZones.length; i++) {
+                    var wpqId = +webpartZones[i].attributes["id"].value.substr("MSOZoneCell_WebPartWPQ".length);
                     if (window["WPQ" + wpqId + "FormCtx"]) {
                         var ctx = window["WPQ" + wpqId + "FormCtx"];
                         var i = 0;
@@ -1544,8 +1544,8 @@ var CSREditor;
                     else
                         toCheck.push(['~sitecollection', _spPageContextInfo.siteServerRelativeUrl]);
                     var jsLinkString = ("|" + oldJsLinkString + "|");
-                    for (var _i = 0; _i < toCheck.length; _i++) {
-                        var info = toCheck[_i];
+                    for (var _i = 0, toCheck_1 = toCheck; _i < toCheck_1.length; _i++) {
+                        var info = toCheck_1[_i];
                         var urlToCheck;
                         if (info[1] == '/')
                             urlToCheck = info[0] + url;
@@ -1622,7 +1622,7 @@ var CSREditor;
                 return "wait";
         };
         return SPActions;
-    })();
+    }());
     CSREditor.SPActions = SPActions;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
@@ -1665,7 +1665,7 @@ var CSREditor;
                 this.changes[fn].push(ts.createTextChangeRange(ts.createTextSpan(startPos, changeLength), newText.length));
         };
         return TypeScriptServiceHost;
-    })();
+    }());
     var TypeScriptService = (function () {
         function TypeScriptService() {
             var self = this;
@@ -1706,7 +1706,7 @@ var CSREditor;
             return this.tsService.getEmitOutput('csr-editor.ts').outputFiles[0].text;
         };
         return TypeScriptService;
-    })();
+    }());
     CSREditor.TypeScriptService = TypeScriptService;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
@@ -1767,7 +1767,7 @@ var CSREditor;
             return true;
         };
         return Utils;
-    })();
+    }());
     CSREditor.Utils = Utils;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
@@ -1867,6 +1867,6 @@ var CSREditor;
             return CSREditor.Utils.safeEnterFileName(event, this.newFileName, function () { CSREditor.NewFileHelper.performNewFileCreation(_this.root, _this); }, function () { _this.adding = false; });
         };
         return WebPartModel;
-    })();
+    }());
     CSREditor.WebPartModel = WebPartModel;
 })(CSREditor || (CSREditor = {}));
