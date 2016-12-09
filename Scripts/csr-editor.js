@@ -1124,7 +1124,7 @@ var CSREditor;
                 try {
                     window[k]({});
                 }
-                finally { }
+                catch (e) { }
             });
             var displayTemplates = displayTemplateFuncs.filter(function (k) { return window[k].DisplayTemplateData; }).map(function (k) {
                 return {
@@ -1335,7 +1335,7 @@ var CSREditor;
                     var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
                     for (var i = 0; i < elements.length; i++) {
                         var control = Srch.U.getClientComponent(elements[i]);
-                        if (control && control instanceof Srch.DisplayControl) {
+                        if (control && (control instanceof Srch.DisplayControl || control instanceof Srch.Result)) {
                             while (elements[i].hasChildNodes())
                                 elements[i].removeChild(elements[i].childNodes[0]);
                             control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(function (r) { return delete r.id; });

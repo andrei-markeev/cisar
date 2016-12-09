@@ -113,7 +113,7 @@ module CSREditor {
 
             var displayTemplateFuncs = Object.keys(window).filter(k => k.indexOf('DisplayTemplate_') == 0);
             displayTemplateFuncs.filter(k => window[k].DisplayTemplateData == null).forEach(k => {
-                try { window[k]({}); } finally {}
+                try { window[k]({}); } catch(e) {}
             });
             var displayTemplates = displayTemplateFuncs.filter(k => window[k].DisplayTemplateData).map(k => { return {
                 uniqueId: k.substr("DisplayTemplate_".length),
@@ -369,7 +369,7 @@ module CSREditor {
                     for (var i=0;i<elements.length;i++)
                     {
                         var control = Srch.U.getClientComponent(elements[i]);
-                        if (control && control instanceof Srch.DisplayControl)
+                        if (control && (control instanceof Srch.DisplayControl || control instanceof Srch.Result))
                         {
                             while (elements[i].hasChildNodes())
                                 elements[i].removeChild(elements[i].childNodes[0]);
