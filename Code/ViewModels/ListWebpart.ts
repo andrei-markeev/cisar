@@ -1,7 +1,7 @@
 ﻿module CSREditor {
-    export class WebPartModel {
+    export class ListWebpart {
 
-        constructor(root: FilesList, info: IWebPartInfoFromSP) {
+        constructor(root: FilesList, info: IListWebpartFromSP) {
             this.root = root;
             this.title = info.title;
             this.id = info.wpId;

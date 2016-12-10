@@ -11,12 +11,13 @@ module CSREditor {
         private static listCsrWebparts() {
             var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
 
-            var webparts = [];
+            var jsLinkWebparts = [];
+            var searchResultWebparts = [];
             var wp_properties = [];
 
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
-                return { webparts: [], displayTemplates: []};
+                return { listWebparts: [], searchWebparts: [], displayTemplates: []};
             }
 
             var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
@@ -37,7 +38,7 @@ module CSREditor {
                         fields.push(f);
                     }
 
-                    webparts.push({
+                    jsLinkWebparts.push({
                         title: 'LFWP ' + controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
@@ -53,7 +54,7 @@ module CSREditor {
                     var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
                     var ctx = window["ctx" + ctxNumber];
 
-                    webparts.push({
+                    jsLinkWebparts.push({
                         title: 'XLV: ' + ctx.ListTitle,
                         wpqId: wpqId,
                         wpId: wpId,
@@ -63,13 +64,26 @@ module CSREditor {
                         listTemplateType: ctx.ListTemplateType
                     });
 
+                } else if (document.querySelector("#WebPartWPQ" + wpqId + " > [componentid$='_csr']")) {
+                    var dtElement = document.querySelector("#WebPartWPQ" + wpqId + " > [componentid$='_csr']");
+                    var dtControl = Srch.U.getClientComponent(dtElement);
+                    if (dtControl && (<Srch.Result>dtControl).get_itemBodyTemplateId)
+                        searchResultWebparts.push({
+                            title: "SearchResults " + (searchResultWebparts.length+1),
+                            wpqId: wpqId,
+                            wpId: wpId,
+                            controlTemplate: (<Srch.Result>dtControl).get_renderTemplateId(),
+                            itemTemplate: (<Srch.Result>dtControl).get_itemTemplateId(),
+                            itemBodyTemplate: (<Srch.Result>dtControl).get_itemBodyTemplateId(),
+                            groupTemplate: (<Srch.Result>dtControl).get_groupTemplateId()
+                        })
                 }
-                wpqId++;
+                
             }
 
             delete window["g_Cisar_JSLinkUrls"];
 
-            if (webparts.length > 0) {
+            if (jsLinkWebparts.length > 0) {
 
                 SP.SOD.executeFunc("sp.js", "SP.ClientContext", function() {
 
@@ -77,12 +91,12 @@ module CSREditor {
                     var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                     var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
 
-                    for (var i=0; i<webparts.length; i++) {
-                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(webparts[i].wpId));
+                    for (var i=0; i<jsLinkWebparts.length; i++) {
+                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(jsLinkWebparts[i].wpId));
                         var webpart = webpartDef.get_webPart();
                         var properties = webpart.get_properties();
                         context.load(properties);
-                        wp_properties.push({ wpqId: webparts[i].wpqId, properties: properties });
+                        wp_properties.push({ wpqId: jsLinkWebparts[i].wpqId, properties: properties });
                     }
                     
                     context.executeQueryAsync(
@@ -102,7 +116,7 @@ module CSREditor {
                         },
                         function (s, args) {
                             console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
-                            console.log(webparts);
+                            console.log(jsLinkWebparts);
                             window["g_Cisar_JSLinkUrls"] = 'error';
                         });
                 });
@@ -121,7 +135,8 @@ module CSREditor {
             }});
 
             return {
-                webparts: webparts,
+                listWebparts: jsLinkWebparts,
+                searchWebparts: searchResultWebparts,
                 displayTemplates: displayTemplates
             };
         }
@@ -149,10 +164,10 @@ module CSREditor {
         }
 
 
-        public static getCode_createFileInSharePoint(path: string, fileName: string, wpId: string, ctxKey: string) {
-            return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + ctxKey + "');";
+        public static getCode_createFileInSharePoint(path: string, fileName: string, wpId: string, content64: string) {
+            return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + content64 + "');";
         }
-        private static createFileInSharePoint(path: string, fileName: string, wpId: string, ctxKey: string) {
+        private static createFileInSharePoint(path: string, fileName: string, wpId: string, content64: string) {
             path = path.replace('%20', ' ');
             var fullPath = path.replace('~sitecollection/', (_spPageContextInfo.siteServerRelativeUrl + '/').replace('//', '/'));
             fullPath = fullPath.replace('~site/', (_spPageContextInfo.webServerRelativeUrl + '/').replace('//', '/'));
@@ -167,12 +182,14 @@ module CSREditor {
                     files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files();
                 context.load(files, "Include(Name)");
 
-                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
-                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
-                var webpart = webpartDef.get_webPart();
-                var properties = webpart.get_properties();
-                context.load(properties);
+                if (wpId) {
+                    var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                    var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                    var webpart = webpartDef.get_webPart();
+                    var properties = webpart.get_properties();
+                    context.load(properties);
+                }
 
                 var setupJsLink = function (properties) {
                     var jsLinkString = (properties.get_item("JSLink") || "") + "|" + path + fileName;
@@ -198,12 +215,14 @@ module CSREditor {
 
                     if (fileExists) {
 
-                        var script = document.createElement("script");
-                        script.src = fullPath + fileName;
-                        script.type = "text/javascript";
-                        document.head.appendChild(script);
+                        if (wpId) {
+                            var script = document.createElement("script");
+                            script.src = fullPath + fileName;
+                            script.type = "text/javascript";
+                            document.head.appendChild(script);
 
-                        setupJsLink(properties);
+                            setupJsLink(properties);
+                        }
 
                         context.executeQueryAsync(function () {
                             window["g_Cisar_fileCreationResult"] = "existing";
@@ -214,12 +233,13 @@ module CSREditor {
                     } else {
 
                         var creationInfo = new SP.FileCreationInformation();
-                        creationInfo.set_content(new SP.Base64EncodedByteArray());
+                        creationInfo.set_content(new SP.Base64EncodedByteArray(content64));
                         creationInfo.set_url(fileName);
                         var file = files.add(creationInfo);
                         context.load(file, 'CheckOutType');
 
-                        setupJsLink(properties);
+                        if (wpId)
+                            setupJsLink(properties);
 
                         context.executeQueryAsync(function () {
                             console.log('Cisar: file has been created successfully.');
@@ -250,170 +270,6 @@ module CSREditor {
             }
             else
                 return "wait";
-        }
-
-
-        public static getCode_performCSRRefresh(url: string, content: string) {
-            return "(" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "');";
-        }
-        private static performCSRRefresh(url: string, content: string) {
-
-            var extend = function (dest, source) {
-                for (var p in source) {
-                    if (source[p] && source[p].constructor && source[p].constructor === Object) {
-                        dest[p] = dest[p] || {};
-                        arguments.callee(dest[p], source[p]);
-                    } else {
-                        dest[p] = source[p];
-                    }
-                }
-                return dest;
-            };
-            var substract_objects = function (obj1, obj2) {
-                for (var p in obj2) {
-                    if (Object.prototype.toString.call(obj2[p]) == "[object Array]" && p in obj1)
-                        obj1[p] = [];
-                    else if (typeof (obj2[p]) == "function" && p in obj1)
-                        delete obj1[p];
-                    else if (typeof (obj2[p]) == "object" && p in obj1)
-                        substract_objects(obj1[p], obj2[p]);
-                }
-            };
-
-            var fileName = url.substr(url.lastIndexOf('/') + 1);
-
-            if (window["g_templateOverrides_" + fileName])
-                substract_objects(SPClientTemplates.TemplateManager["_TemplateOverrides"], window["g_templateOverrides_" + fileName]);
-
-            var savedRegisterOverridesMethod = SPClientTemplates.TemplateManager.RegisterTemplateOverrides;
-            SPClientTemplates.TemplateManager.RegisterTemplateOverrides = function (options) {
-                SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
-
-                var savedTemplateOverrides = {};
-                extend(savedTemplateOverrides, SPClientTemplates.TemplateManager["_TemplateOverrides"]);
-                for (var p in SPClientTemplates.TemplateManager["_TemplateOverrides"])
-                    SPClientTemplates.TemplateManager["_TemplateOverrides"][p] = {};
-
-                savedRegisterOverridesMethod(options);
-
-                window["g_templateOverrides_" + fileName] = {};
-                extend(window["g_templateOverrides_" + fileName], SPClientTemplates.TemplateManager["_TemplateOverrides"]);
-
-                substract_objects(savedTemplateOverrides, { OnPreRender: window["g_templateOverrides_" + fileName].OnPreRender, OnPostRender: window["g_templateOverrides_" + fileName].OnPostRender });
-
-                SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
-                savedRegisterOverridesMethod(options);
-
-                var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
-                for (var i=0; i < webpartZones.length; i++) {
-                    var wpqId = +webpartZones[i].attributes["id"].value.substr("MSOZoneCell_WebPartWPQ".length);
-                    if (window["WPQ" + wpqId + "FormCtx"]) {
-
-                        var ctx = window["WPQ" + wpqId + "FormCtx"];
-                        var i = 0;
-                        var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
-                        for (var f in ctx.ListSchema) {
-                            if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
-                                continue;
-                            var nodesToReplace = [];
-                            for (var n = 0; n < rows[i].childNodes.length; n++)
-                                if (rows[i].childNodes[n].nodeType != 8)
-                                    nodesToReplace.push(rows[i].childNodes[n]);
-                            var span = document.createElement("span");
-                            span.id = "WPQ" + wpqId + ctx.ListAttributes.Id + f;
-                            rows[i].appendChild(span);
-                            for (var n = 0; n < nodesToReplace.length; n++)
-                                span.appendChild(nodesToReplace[n]);
-                            i++;
-                        }
-
-                        window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
-
-                    } else if (window["WPQ" + wpqId + "SchemaData"]) {
-
-                        var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
-                        var ctx = window["ctx" + ctxNumber];
-                        for (var f in ctx.ListSchema.Field)
-                            delete ctx.ListSchema.Field[f].fieldRenderer;
-                        ctx.DebugMode = true;
-                        if (ctx.inGridMode) {
-                            var searchDiv = $get("inplaceSearchDiv_WPQ" + wpqId);
-                            searchDiv.parentNode.removeChild(searchDiv);
-                            var gridInitInfo = window["g_SPGridInitInfo"][ctx.view];
-                            gridInitInfo.initialized = false;
-                            window["InitGrid"](gridInitInfo, ctx, false);
-                        }
-                        else
-                            window["RenderListView"](ctx, ctx.wpq);
-                    }
-                    wpqId++;
-                }
-
-            }
-
-            if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {
-                window["ko"].cleanNode(document.body);
-            }
-
-            if ($get('csrErrorDiv') != null)
-                document.body.removeChild($get('csrErrorDiv'));
-            if ($get('csrErrorDivText') != null)
-                document.body.removeChild($get('csrErrorDivText'));
-
-            try {
-                eval(content);
-                
-                if ('Srch' in window && Srch.U)
-                {
-                    var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
-                    for (var i=0;i<elements.length;i++)
-                    {
-                        var control = Srch.U.getClientComponent(elements[i]);
-                        if (control && (control instanceof Srch.DisplayControl || control instanceof Srch.Result))
-                        {
-                            while (elements[i].hasChildNodes())
-                                elements[i].removeChild(elements[i].childNodes[0]);
-                            control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(r => delete r.id);
-                            control.render();
-                        }
-                    }
-                }
-                
-            }
-            catch (err) {
-                console.log("Error when evaluating the CSR template code!");
-                console.log(err);
-
-                var div = document.createElement('div');
-                div.id = "csrErrorDiv";
-                div.style.backgroundColor = "#300";
-                div.style.opacity = "0.5";
-                div.style.position = "fixed";
-                div.style.top = "0";
-                div.style.left = "0";
-                div.style.bottom = "0";
-                div.style.right = "0";
-                div.style.zIndex = "101";
-                document.body.appendChild(div);
-
-                var textDiv = document.createElement('div');
-                textDiv.id = "csrErrorDivText";
-                textDiv.style.position = "fixed";
-                textDiv.style.backgroundColor = "#fff";
-                textDiv.style.border = "2px solid #000";
-                textDiv.style.padding = "10px 15px";
-                textDiv.style.width = "300px";
-                textDiv.style.top = "200px";
-                textDiv.style.left = "0";
-                textDiv.style.right = "0";
-                textDiv.style.margin = "0 auto";
-                textDiv.style.zIndex = "102";
-                textDiv.innerHTML = "Error when evaluating the CSR template code: " + err["message"];
-                document.body.appendChild(textDiv);
-            }
-            finally {
-                SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
-            }
         }
 
         public static getCode_saveFileToSharePoint(url: string, content64: string) {
@@ -571,6 +427,46 @@ module CSREditor {
             if (window["g_Cisar_JSLinkSaveResult"]) {
                 var result = window["g_Cisar_JSLinkSaveResult"];
                 delete window["g_Cisar_JSLinkSaveResult"];
+                return result;
+            }
+            else
+                return "wait";
+        }
+
+
+        public static getCode_setTemplates(wpId: string, controlTemplateId: string, groupTemplateId: string, itemTemplateId: string, itemBodyTemplateId: string) {
+            return "(" + SPActions.setTemplates + ")('" + wpId + "','" + controlTemplateId + "','" + groupTemplateId + "','" + itemTemplateId + "','" + itemBodyTemplateId + "');";
+        }
+        private static setTemplates(wpId, controlTemplateId, groupTemplateId, itemTemplateId, itemBodyTemplateId) {
+            delete window["g_Cisar_TemplatesSaveResult"];
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                webpart.get_properties().set_item("RenderTemplateId", controlTemplateId);
+                webpart.get_properties().set_item("GroupTemplateId", groupTemplateId);
+                webpart.get_properties().set_item("ItemTemplateId", itemTemplateId);
+                webpart.get_properties().set_item("ItemBodyTemplateId", itemBodyTemplateId);
+                webpartDef.saveWebPartChanges();
+
+                context.executeQueryAsync(function () {
+                    window["g_Cisar_TemplatesSaveResult"] = 'success';
+                },
+                function (sender, args) {
+                    window["g_Cisar_TemplatesSaveResult"] = 'error';
+                    console.log('Error when saving Templates: ' + args.get_message());
+                });
+            });
+        }
+        public static getCode_checkTemplatesSaved() {
+            return "(" + SPActions.checkTemplatesSaved + ")();";
+        }
+        private static checkTemplatesSaved() {
+            if (window["g_Cisar_TemplatesSaveResult"]) {
+                var result = window["g_Cisar_TemplatesSaveResult"];
+                delete window["g_Cisar_TemplatesSaveResult"];
                 return result;
             }
             else

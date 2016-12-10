@@ -1,36 +1,56 @@
 ﻿module CSREditor {
     export class NewFileHelper {
 
-        public static performNewFileCreation(filesList: FilesList, webpart: WebPartModel) {
+        public static performNewFileCreation(filesList: FilesList, webpart: ListWebpart) {
 
             webpart.adding = false;
             webpart.loading = true;
             if (webpart.newFileName.indexOf('.js') == -1)
                 webpart.newFileName += '.js';
 
+            NewFileHelper.createFile({ 
+                path: filesList.pathRelativeTo + filesList.filesPath.toLowerCase(), 
+                fileName: webpart.newFileName, 
+                webpartId: webpart.id
+            }, (alreadyExists) => {
+
+                webpart.loading = false;
+                if (alreadyExists) {
+                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
+                    webpart.appendFileToList(fullUrl, false);
+                } else {
+                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
+                    var file = webpart.appendFileToList(fullUrl, true);
+                    var templateText = this.generateTemplate(webpart, filesList.filesPath);
+
+                    filesList.panel.setEditorText(file.url, templateText, true);
+                }
+                
+            });
+
+        }
+
+        public static createFile(options: { path: string, fileName: string, webpartId?: string, content?: string }, callback: any) {
+
+            var content = "";
+            if (options.content)
+                content = B64.encode(options.content);
+
             CSREditor.ChromeIntegration.evalAndWaitForResult(
 
-                SPActions.getCode_createFileInSharePoint(filesList.pathRelativeTo + filesList.filesPath.toLowerCase(), webpart.newFileName, webpart.id, webpart.ctxKey),
+                SPActions.getCode_createFileInSharePoint(options.path, options.fileName, options.webpartId || "", content),
                 SPActions.getCode_checkFileCreated(),
 
                 (result, errorInfo) => {
-                    webpart.loading = false;
                     if (errorInfo || result == "error") {
                         alert("There was an error when creating the file. Please check console for details.");
                         if (errorInfo)
                             console.log(errorInfo);
                     }
-                    else if (result == "created") {
-                        var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
-                        var file = webpart.appendFileToList(fullUrl, true);
-                        var templateText = this.generateTemplate(webpart, filesList.filesPath);
-
-                        filesList.setEditorText(file.url, templateText, true);
-                    }
-                    else if (result == "existing") {
-                        var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
-                        webpart.appendFileToList(fullUrl, false);
-                    }
+                    else if (result == "created")
+                        callback(false);
+                    else if (result == "existing")
+                        callback(true);
 
                 }
 
@@ -38,7 +58,7 @@
 
         }
 
-        private static generateTemplate(webpart: WebPartModel, filesPath: string) {
+        private static generateTemplate(webpart: ListWebpart, filesPath: string) {
 
             if (!webpart.fields || webpart.fields.length == 0)
                 webpart.fields = ['<field internal name>'];

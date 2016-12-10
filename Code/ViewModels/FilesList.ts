@@ -3,19 +3,18 @@
 module CSREditor {
     export class FilesList {
 
+        public panel: Panel;
         public changePathDialogShown: boolean = false;
 
         public loading: boolean;
-        public currentWebPart: WebPartModel;
+        public currentWebPart: ListWebpart;
         public currentFile: FileModel;
-        public webparts: WebPartModel[];
+        public listWebparts: ListWebpart[];
+        public searchWebparts: SearchWebpart[];
         public displayTemplates: FileModel[];
         public otherFiles: FileModel[];
 
         public fileError: string = null;
-
-        public loadFileToEditor: { (url: string): void };
-        public setEditorText: { (url: string, text: string, newlyCreated?: boolean): void };
 
         public pathRelativeToOptions: string[] = ['~sitecollection', '~site'];
         public pathRelativeTo: string;
@@ -32,9 +31,8 @@ module CSREditor {
         public webpartsLoadError: string = "";
         public pageContextInfoError: boolean = false;
 
-        constructor(loadUrlToEditor: { (url: string): void }, setEditorText: { (url: string, text: string, newlyCreated?: boolean): void }) {
-            this.loadFileToEditor = loadUrlToEditor;
-            this.setEditorText = setEditorText;
+        constructor(panel: Panel) {
+            this.panel = panel;
             this.filesPath = localStorage['filesPath'] || "/Style Library/";
             this.pathRelativeTo = localStorage['pathRelativeTo'] || "~sitecollection";
 
@@ -59,7 +57,8 @@ module CSREditor {
 
         public reload() {
 
-            this.webparts = [];
+            this.listWebparts = [];
+            this.searchWebparts = [];
             this.otherFiles = [];
             this.displayTemplates = [];
             this.currentWebPart = null;
@@ -106,11 +105,16 @@ module CSREditor {
                     this.loading = false;
                     return;
                 }
-                var wpDict: { [id: number]: WebPartModel } = {};
-                for (var i = 0; i < result.webparts.length; i++) {
-                    var wp = new WebPartModel(this, result.webparts[i]);
+                var wpDict: { [id: number]: ListWebpart } = {};
+                for (var i = 0; i < result.listWebparts.length; i++) {
+                    var wp = new ListWebpart(this, result.listWebparts[i]);
                     wpDict[wp.wpq] = wp;
-                    this.webparts.push(wp);
+                    this.listWebparts.push(wp);
+                }
+
+                for (var i = 0; i < result.searchWebparts.length; i++) {
+                    var swp = new SearchWebpart(this, result.searchWebparts[i]);
+                    this.searchWebparts.push(swp);
                 }
 
                 for (var i = 0; i < result.displayTemplates.length; i++) {
@@ -206,7 +210,7 @@ module CSREditor {
 
             content = content.replace(/\r?\n\s*|\r\s*/g, ' ').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
-            CSREditor.ChromeIntegration.eval(SPActions.getCode_performCSRRefresh(url, content));
+            CSREditor.ChromeIntegration.eval(SPLiveRefresh.getCode_performCSRRefresh(url, content));
         }
 
         public saveChangesToFile(url: string, content: string, saveNow?: boolean) {

@@ -1,5 +1,200 @@
 var CSREditor;
 (function (CSREditor) {
+    var Panel = (function () {
+        function Panel() {
+            this.fileName = null;
+            this.modifiedFilesContent = {};
+            this.needSave = false;
+        }
+        Panel.start = function () {
+            var panel = new Panel();
+            panel.initialize();
+        };
+        Panel.prototype.initialize = function () {
+            var _this = this;
+            this.typeScriptService = new CSREditor.TypeScriptService();
+            this.editorCM = this.initEditor();
+            this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
+            this.filesList = new CSREditor.FilesList(this);
+            this.loadWindowKeys();
+            CSREditor.ChromeIntegration.setNavigatedListener(function (pageUrl) {
+                CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkPageIsLoaded(), function () {
+                    _this.setEditorText(null, "");
+                    _this.filesList.reload();
+                    _this.loadWindowKeys();
+                });
+            });
+        };
+        Panel.prototype.loadWindowKeys = function () {
+            var _this = this;
+            CSREditor.ChromeIntegration.eval("keys(window)", function (result, errorInfo) {
+                if (!errorInfo) {
+                    var windowTS = '';
+                    var completions = _this.typeScriptService.getCompletions(0);
+                    var existingSymbols = {};
+                    if (completions != null) {
+                        for (var i = 0; i < completions.entries.length; i++)
+                            existingSymbols[completions.entries[i].name] = 1;
+                    }
+                    for (var k = 0; k < result.length; k++) {
+                        if (typeof existingSymbols[result[k]] == 'undefined' && /^[\$a-zA-Z_][\$a-zA-Z0-9_]+$/.test(result[k]))
+                            windowTS += 'var ' + result[k] + ': any;';
+                    }
+                    _this.typeScriptService.windowChanged(windowTS);
+                }
+            });
+        };
+        Panel.prototype.initEditor = function () {
+            var _this = this;
+            var editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+                lineNumbers: true,
+                matchBrackets: true,
+                mode: "text/typescript",
+                readOnly: true,
+                extraKeys: {
+                    "Ctrl-K": "toggleComment"
+                }
+            });
+            editor.on("change", function (editor, changeList) { _this.processChanges(editor.getDoc(), changeList); });
+            return editor;
+        };
+        Panel.prototype.loadUrlToEditor = function (url) {
+            var _this = this;
+            if (url in this.modifiedFilesContent)
+                this.setEditorText(url, this.modifiedFilesContent[url]);
+            else {
+                // clear content and make readonly while loading
+                this.setEditorText(null, '');
+                CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_getFileContent(url), CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result, errorInfo) {
+                    if (errorInfo || result == "error") {
+                        _this.setEditorText(null, "");
+                        _this.filesList.fileError = "There was an error opening file '" + url + "'.<br/>Check console for details.";
+                    }
+                    else if (result == "notFound") {
+                        var isOtherFile = false;
+                        for (var _i = 0, _a = _this.filesList.otherFiles; _i < _a.length; _i++) {
+                            var otherFile = _a[_i];
+                            if (otherFile.url == url) {
+                                isOtherFile = true;
+                                break;
+                            }
+                        }
+                        _this.setEditorText(null, "");
+                        if (isOtherFile)
+                            _this.filesList.fileError = "File is referenced by the page but was not found: " + url;
+                        else
+                            _this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (<i class='fa fa-trash-o'></i>) next to the filename.";
+                    }
+                    else
+                        _this.setEditorText(url, result);
+                });
+            }
+        };
+        Panel.prototype.setEditorText = function (url, text, newlyCreated) {
+            var _this = this;
+            if (newlyCreated === void 0) { newlyCreated = false; }
+            this.filesList.fileError = null;
+            this.fileName = url;
+            this.editorCM.setOption("mode", url != null && url.endsWith(".js") ? "text/typescript" : "text/html");
+            this.needSave = false;
+            this.editorCM.getDoc().setValue(text);
+            this.editorCM.setOption("readOnly", url == null);
+            if (url == null)
+                return;
+            this.needSave = true;
+            if (newlyCreated) {
+                this.modifiedFilesContent[url] = text;
+                this.filesList.saveChangesToFile(url, text, true);
+            }
+            this.intellisenseHelper.setFieldInternalNames([]);
+            if (!this.filesList.currentWebPart)
+                return;
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), function (result, errorInfo) {
+                var fieldNames = [];
+                for (var i in result) {
+                    var f = result[i].Name;
+                    if (_this.filesList.currentWebPart.isListForm && (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString"))
+                        continue;
+                    fieldNames.push(result[i].Name);
+                }
+                _this.intellisenseHelper.setFieldInternalNames(fieldNames);
+            });
+        };
+        Panel.prototype.getEditorTextRaw = function () {
+            return this.editorCM.getDoc().getValue();
+        };
+        Panel.prototype.processChanges = function (cm, changeObj) {
+            if (!changeObj)
+                return;
+            var isTS = this.editorCM.getOption("mode") == "text/typescript";
+            var isHtml = this.editorCM.getOption("mode") == "text/html";
+            if (isTS)
+                this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
+            var url = this.fileName;
+            if (url != null) {
+                var text = cm.getValue();
+                var transformer = new DisplayTemplateTransformer(text, this.filesList.currentFile.displayTemplateUniqueId, this.filesList.currentFile.displayTemplateData);
+                if (isTS)
+                    this.filesList.refreshCSR(url, this.typeScriptService.getJs());
+                else if (isHtml) {
+                    try {
+                        var jsContent = transformer.Transform();
+                        this.filesList.refreshCSR(url, jsContent);
+                        this.typeScriptService.scriptChanged(jsContent, 0, 0);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+                if (this.needSave) {
+                    this.filesList.saveChangesToFile(url, text);
+                    this.modifiedFilesContent[url] = text;
+                }
+                if (changeObj.text.length == 1)
+                    this.intellisenseHelper.scriptChanged(cm, changeObj.text[0], transformer.GetPositionInJs(cm.indexFromPos(changeObj.to) + 1));
+                this.checkSyntax(cm, transformer);
+            }
+        };
+        Panel.prototype.checkSyntax = function (cm, transformer) {
+            var _this = this;
+            var allMarkers = cm.getAllMarks();
+            for (var i = 0; i < allMarkers.length; i++) {
+                allMarkers[i].clear();
+            }
+            if (Panel.checkSyntaxTimeout)
+                clearTimeout(Panel.checkSyntaxTimeout);
+            Panel.checkSyntaxTimeout = setTimeout(function () {
+                var errors = _this.typeScriptService.getErrors();
+                for (var i = 0; i < errors.length; i++) {
+                    var text = "";
+                    if (typeof errors[i].messageText == "string")
+                        text = errors[i].messageText;
+                    else {
+                        var chain = errors[i].messageText;
+                        var texts = [];
+                        while (chain.next) {
+                            texts.push(chain.messageText);
+                            chain = chain.next;
+                        }
+                        text = texts.join('\n  ');
+                    }
+                    var start = transformer.GetPositionInHtml(errors[i].start);
+                    var end = transformer.GetPositionInHtml(errors[i].start + errors[i].length);
+                    if (start != -1 && end != -1)
+                        cm.markText(cm.posFromIndex(start), cm.posFromIndex(end), {
+                            className: "syntax-error",
+                            title: text
+                        });
+                }
+            }, 1500);
+        };
+        Panel.checkSyntaxTimeout = 0;
+        return Panel;
+    }());
+    CSREditor.Panel = Panel;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
     var ChromeIntegration = (function () {
         function ChromeIntegration() {
         }
@@ -96,6 +291,291 @@ var CSREditor;
         return ChromeIntegration;
     }());
     CSREditor.ChromeIntegration = ChromeIntegration;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
+    var IntellisenseHelper = (function () {
+        function IntellisenseHelper(typeScriptService, editor) {
+            var _this = this;
+            this.tooltipLastPos = { line: -1, ch: -1 };
+            this.fieldNames = [];
+            this.typeScriptService = typeScriptService;
+            editor.on("cursorActivity", function (cm) {
+                if (cm.getDoc().getCursor().line != _this.tooltipLastPos.line || cm.getDoc().getCursor().ch < _this.tooltipLastPos.ch) {
+                    $('.tooltip').remove();
+                }
+            });
+        }
+        IntellisenseHelper.prototype.setFieldInternalNames = function (fieldNames) {
+            this.fieldNames = fieldNames;
+        };
+        IntellisenseHelper.prototype.joinParts = function (displayParts) {
+            if (displayParts)
+                return displayParts.map(function (p) { return p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>"; }).join("").replace('\n', '<br/>');
+            else
+                return '';
+        };
+        IntellisenseHelper.prototype.showCodeMirrorHint = function (cm, list) {
+            var _this = this;
+            list.sort(function (l, r) {
+                if (l.displayText > r.displayText)
+                    return 1;
+                if (l.displayText < r.displayText)
+                    return -1;
+                return 0;
+            });
+            cm.getEditor()["showHint"]({
+                completeSingle: false,
+                hint: function (cm) {
+                    var cur = cm.getCursor();
+                    var token = cm.getTokenAt(cur);
+                    var completionInfo = null;
+                    var show_words = [];
+                    if (token.string == ".") {
+                        for (var i = 0; i < list.length; i++) {
+                            if (list[i].livePreview == false)
+                                show_words.push(list[i]);
+                        }
+                        completionInfo = { from: cur, to: cur, list: show_words };
+                    }
+                    else if (token.string == "," || token.string == "(") {
+                        completionInfo = { from: cur, to: cur, list: list };
+                    }
+                    else {
+                        for (var i = 0; i < list.length; i++) {
+                            if (list[i].text.toLowerCase().indexOf(token.string.toLowerCase().replace(/\"$/, '')) > -1)
+                                show_words.push(list[i]);
+                        }
+                        completionInfo = {
+                            from: { line: cur.line, ch: token.start },
+                            to: { line: cur.line, ch: token.end },
+                            list: show_words
+                        };
+                    }
+                    var tooltip;
+                    CodeMirror.on(completionInfo, "select", function (completion, element) {
+                        $('.tooltip').remove();
+                        if (!completion.typeInfo && completion.pos) {
+                            var details = _this.typeScriptService.getCompletionDetails(completion.pos, completion.text);
+                            completion.typeInfo = _this.joinParts(details.displayParts);
+                            completion.docComment = _this.joinParts(details.documentation);
+                        }
+                        if (completion.typeInfo) {
+                            $(element).tooltip({
+                                html: true,
+                                title: '<div class="tooltip-typeInfo">' + completion.typeInfo + '</div>' + '<div class="tooltip-docComment">' + completion.docComment.replace('\n', '<br/>') + '</div>',
+                                trigger: 'manual', container: 'body', placement: 'right'
+                            });
+                            $(element).tooltip('show');
+                        }
+                    });
+                    CodeMirror.on(completionInfo, "close", function () {
+                        $('.tooltip').remove();
+                    });
+                    return completionInfo;
+                }
+            });
+        };
+        IntellisenseHelper.prototype.showAutoCompleteDropDown = function (cm, changePosition) {
+            var completions = this.typeScriptService.getCompletions(changePosition);
+            if (completions == null)
+                return;
+            $('.tooltip').remove();
+            var list = [];
+            for (var i = 0; i < completions.entries.length; i++) {
+                list.push({
+                    text: completions.entries[i].name,
+                    displayText: completions.entries[i].name,
+                    kind: completions.entries[i].kind,
+                    pos: changePosition,
+                    livePreview: false
+                });
+            }
+            this.showCodeMirrorHint(cm, list);
+        };
+        IntellisenseHelper.prototype.showFunctionTooltip = function (cm, changePosition) {
+            var _this = this;
+            $('.tooltip').remove();
+            var signatures = this.typeScriptService.getSignature(changePosition);
+            if (signatures && signatures.items && signatures.selectedItemIndex >= 0) {
+                var signature = signatures.items[signatures.selectedItemIndex];
+                var paramsString = signature.parameters
+                    .map(function (p) { return _this.joinParts(p.displayParts); })
+                    .join(this.joinParts(signature.separatorDisplayParts));
+                var signatureString = this.joinParts(signature.prefixDisplayParts) + paramsString + this.joinParts(signature.suffixDisplayParts);
+                this.tooltipLastPos = cm.getCursor();
+                var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
+                var domElement = cm.getEditor().getWrapperElement();
+                $(domElement).data('bs.tooltip', false).tooltip({
+                    html: true,
+                    title: '<div class="tooltip-typeInfo">' + signatureString + '</div>' + '<div class="tooltip-docComment">' + this.joinParts(signature.documentation) + '</div>',
+                    trigger: 'manual', container: 'body', placement: 'bottom'
+                });
+                $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
+                    $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px");
+                });
+                $(domElement).tooltip('show');
+            }
+        };
+        IntellisenseHelper.prototype.scriptChanged = function (cm, changeText, changePos) {
+            if (changeText == '.') {
+                this.showAutoCompleteDropDown(cm, changePos);
+            }
+            else if (changeText == '(' || changeText == ',') {
+                this.showFunctionTooltip(cm, changePos);
+            }
+            else if (changeText == ')') {
+                $('.tooltip').remove();
+            }
+        };
+        return IntellisenseHelper;
+    }());
+    CSREditor.IntellisenseHelper = IntellisenseHelper;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
+    var TypeScriptServiceHost = (function () {
+        function TypeScriptServiceHost(libText) {
+            this.scriptVersion = {};
+            this.libText = "";
+            this.libTextLength = 0;
+            this.text = {};
+            this.changes = {};
+            this.libText = libText;
+            this.libTextLength = libText.length;
+            this.scriptVersion['csr-editor.ts'] = 0;
+            this.text['csr-editor.ts'] = '';
+            this.changes['csr-editor.ts'] = [];
+            this.scriptVersion['live.ts'] = 0;
+            this.text['live.ts'] = '';
+            this.changes['live.ts'] = [];
+        }
+        TypeScriptServiceHost.prototype.log = function (message) { console.log("tsHost: " + message); };
+        TypeScriptServiceHost.prototype.getCompilationSettings = function () { return { removeComments: true, target: 1 /* ES5 */ }; };
+        TypeScriptServiceHost.prototype.getScriptFileNames = function () { return ["libs.ts", "live.ts", "csr-editor.ts"]; };
+        TypeScriptServiceHost.prototype.getScriptVersion = function (fn) { return (this.scriptVersion[fn] || 0).toString(); };
+        TypeScriptServiceHost.prototype.getScriptSnapshot = function (fn) {
+            var snapshot, snapshotChanges, snapshotVersion;
+            if (fn == 'libs.ts')
+                return ts.ScriptSnapshot.fromString(this.libText);
+            else
+                return ts.ScriptSnapshot.fromString(this.text[fn]);
+        };
+        TypeScriptServiceHost.prototype.getCurrentDirectory = function () { return ""; };
+        TypeScriptServiceHost.prototype.getDefaultLibFileName = function () { return "libs.ts"; };
+        TypeScriptServiceHost.prototype.scriptChanged = function (fn, newText, startPos, changeLength) {
+            if (startPos === void 0) { startPos = 0; }
+            if (changeLength === void 0) { changeLength = 0; }
+            this.scriptVersion[fn]++;
+            this.text[fn] = newText;
+            if (startPos > 0 || changeLength > 0)
+                this.changes[fn].push(ts.createTextChangeRange(ts.createTextSpan(startPos, changeLength), newText.length));
+        };
+        return TypeScriptServiceHost;
+    }());
+    var TypeScriptService = (function () {
+        function TypeScriptService() {
+            var self = this;
+            var client = new XMLHttpRequest();
+            client.open('GET', 'Scripts/typings/libs.d.ts');
+            client.onreadystatechange = function () {
+                if (client.readyState != 4)
+                    return;
+                self.tsHost = new TypeScriptServiceHost(client.responseText);
+                self.tsService = ts.createLanguageService(self.tsHost, ts.createDocumentRegistry());
+            };
+            client.send();
+        }
+        TypeScriptService.prototype.scriptChanged = function (newText, startPos, changeLength) {
+            this.tsHost.scriptChanged('csr-editor.ts', newText, startPos, changeLength);
+        };
+        TypeScriptService.prototype.windowChanged = function (newText) {
+            this.tsHost.scriptChanged('live.ts', newText);
+        };
+        TypeScriptService.prototype.getSymbolInfo = function (position) {
+            return this.tsService.getEncodedSemanticClassifications('csr-editor.ts', position);
+        };
+        TypeScriptService.prototype.getCompletions = function (position) {
+            return this.tsService.getCompletionsAtPosition('csr-editor.ts', position);
+        };
+        TypeScriptService.prototype.getCompletionDetails = function (position, name) {
+            return this.tsService.getCompletionEntryDetails('csr-editor.ts', position, name);
+        };
+        TypeScriptService.prototype.getSignature = function (position) {
+            return this.tsService.getSignatureHelpItems('csr-editor.ts', position);
+        };
+        TypeScriptService.prototype.getErrors = function () {
+            var syntastic = this.tsService.getSyntacticDiagnostics('csr-editor.ts');
+            var semantic = this.tsService.getSemanticDiagnostics('csr-editor.ts');
+            return syntastic.concat(semantic);
+        };
+        TypeScriptService.prototype.getJs = function () {
+            return this.tsService.getEmitOutput('csr-editor.ts').outputFiles[0].text;
+        };
+        return TypeScriptService;
+    }());
+    CSREditor.TypeScriptService = TypeScriptService;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
+    var Utils = (function () {
+        function Utils() {
+        }
+        Utils.endsWith = function (s, suffix) {
+            return s.indexOf(suffix, s.length - suffix.length) !== -1;
+        };
+        Utils.cutOffQueryString = function (s) {
+            if (s.indexOf('?') > 0)
+                s = s.substr(0, s.indexOf('?'));
+            return s;
+        };
+        Utils.toRelative = function (url, baseUrl) {
+            url = url.toLowerCase().replace(baseUrl.toLowerCase(), '');
+            url = Utils.cutOffQueryString(url.replace(' ', '%20'));
+            if (url[0] != '/')
+                url = '/' + url;
+            return url;
+        };
+        Utils.safeEnterFileName = function (event, value, okCallback, cancelCallback) {
+            return Utils.safeEnterValue(event, value, okCallback, cancelCallback, false);
+        };
+        Utils.safeEnterPath = function (event, value, okCallback, cancelCallback) {
+            return Utils.safeEnterValue(event, value, okCallback, cancelCallback, true);
+        };
+        Utils.safeEnterValue = function (event, value, okCallback, cancelCallback, isPath) {
+            if ((event.keyCode == 13 && value != "") || event.keyCode == 27) {
+                if (event.keyCode == 13)
+                    okCallback();
+                else
+                    cancelCallback();
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            else {
+                var safe = false;
+                if (event.keyCode >= 65 && event.keyCode <= 90)
+                    safe = true;
+                if (event.keyCode >= 48 && event.keyCode <= 57 && event.shiftKey == false)
+                    safe = true;
+                if ([8, 35, 36, 37, 38, 39, 40, 46, 189].indexOf(event.keyCode) > -1)
+                    safe = true;
+                if (event.keyCode == 190 && event.shiftKey == false)
+                    safe = true;
+                if (event.char == "")
+                    safe = true;
+                if ([191, 32].indexOf(event.keyCode) > -1 && isPath)
+                    safe = true;
+                if (!safe) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+            }
+            return true;
+        };
+        return Utils;
+    }());
+    CSREditor.Utils = Utils;
 })(CSREditor || (CSREditor = {}));
 var DisplayTemplateTokenSyntax = (function () {
     function DisplayTemplateTokenSyntax() {
@@ -373,661 +853,6 @@ var DisplayTemplateTransformer = (function () {
     ];
     return DisplayTemplateTransformer;
 }());
-var CSREditor;
-(function (CSREditor) {
-    var FileModel = (function () {
-        function FileModel(wp, root, url) {
-            this.isDisplayTemplate = false;
-            this.url = '';
-            this.shortUrl = '';
-            this.justCreated = false;
-            this.published = false;
-            this.current = false;
-            this.paused = false;
-            this.root = root;
-            this.wp = wp;
-            url = CSREditor.Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
-            if (url.indexOf("_catalogs/masterpage/display%20templates") != -1 && url.endsWith(".js")) {
-                url = url.slice(0, -3) + ".html";
-                this.isDisplayTemplate = true;
-            }
-            this.url = url;
-            this.shortUrl = url.substr(url.lastIndexOf('/') + 1);
-            ko.track(this);
-        }
-        FileModel.prototype.makeFileCurrent = function () {
-            if (this.root.currentFile)
-                this.root.currentFile.current = false;
-            this.current = true;
-            this.root.currentFile = this;
-            this.root.currentWebPart = this.wp;
-            this.root.loadFileToEditor(this.url);
-        };
-        FileModel.prototype.publishFile = function () {
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_publishFileToSharePoint(this.url));
-            this.published = true;
-        };
-        FileModel.prototype.removeFile = function () {
-            if (confirm('Sure to move the file to recycle bin and unbind it from the webpart?')) {
-                var url = CSREditor.Utils.toRelative(this.url, this.root.domainPart);
-                this.root.setEditorText(null, '');
-                CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
-                this.root.currentWebPart.files.remove(this);
-            }
-        };
-        FileModel.prototype.pauseOrResume = function () {
-            this.paused = !this.paused;
-        };
-        return FileModel;
-    }());
-    CSREditor.FileModel = FileModel;
-})(CSREditor || (CSREditor = {}));
-var B64;
-var CSREditor;
-(function (CSREditor) {
-    var FilesList = (function () {
-        function FilesList(loadUrlToEditor, setEditorText) {
-            this.changePathDialogShown = false;
-            this.fileError = null;
-            this.pathRelativeToOptions = ['~sitecollection', '~site'];
-            this.pathRelativeToEntered = "";
-            this.filesPathEntered = "";
-            this.siteUrl = "";
-            this.webUrl = "";
-            this.siteServerRelativeUrl = "";
-            this.webServerRelativeUrl = "";
-            this.domainPart = "";
-            this.personalView = false;
-            this.webpartsLoadError = "";
-            this.pageContextInfoError = false;
-            this.savingQueue = {};
-            this.savingProcess = null;
-            this.loadFileToEditor = loadUrlToEditor;
-            this.setEditorText = setEditorText;
-            this.filesPath = localStorage['filesPath'] || "/Style Library/";
-            this.pathRelativeTo = localStorage['pathRelativeTo'] || "~sitecollection";
-            this.reload();
-            ko.track(this);
-            ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
-                localStorage['filesPath'] = newValue;
-            });
-            ko.getObservable(this, 'pathRelativeTo').subscribe(function (newValue) {
-                localStorage['pathRelativeTo'] = newValue;
-            });
-            ko.applyBindings(this);
-            document.querySelector('.separator').onclick = function (ev) {
-                if (document.body.className.indexOf("fullscreen") > -1)
-                    document.body.className = document.body.className.replace("fullscreen", "");
-                else
-                    document.body.className += " fullscreen";
-            };
-        }
-        FilesList.prototype.reload = function () {
-            var _this = this;
-            this.webparts = [];
-            this.otherFiles = [];
-            this.displayTemplates = [];
-            this.currentWebPart = null;
-            this.currentFile = null;
-            this.personalView = false;
-            this.fileError = null;
-            this.webpartsLoadError = "";
-            this.pageContextInfoError = false;
-            this.loading = true;
-            CSREditor.ChromeIntegration.eval("_spPageContextInfo", function (result, errorInfo) {
-                if (errorInfo) {
-                    console.log(errorInfo);
-                    _this.pageContextInfoError = true;
-                    _this.loading = false;
-                    return;
-                }
-                _this.siteUrl = result.siteAbsoluteUrl.toLowerCase();
-                _this.webUrl = result.webAbsoluteUrl.toLowerCase();
-                _this.siteServerRelativeUrl = result.siteServerRelativeUrl.toLowerCase();
-                _this.webServerRelativeUrl = result.webServerRelativeUrl.toLowerCase();
-                _this.domainPart = result.siteServerRelativeUrl == '/' ? _this.siteUrl : _this.siteUrl.replace(result.siteServerRelativeUrl, '');
-                _this.pathRelativeToOptions.removeAll();
-                _this.pathRelativeToOptions.push('~sitecollection');
-                if (result.webServerRelativeUrl != result.siteServerRelativeUrl)
-                    _this.pathRelativeToOptions.push('~site');
-                CSREditor.ChromeIntegration.getAllResources(_this.siteUrl, function (urls) {
-                    _this.addOtherFiles(Object.keys(urls));
-                    _this.loadWebParts();
-                });
-            });
-        };
-        FilesList.prototype.loadWebParts = function () {
-            var _this = this;
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_listCsrWebparts(), function (result, errorInfo) {
-                if (errorInfo) {
-                    console.log(errorInfo);
-                    _this.webpartsLoadError = errorInfo.value || JSON.stringify(errorInfo);
-                    _this.loading = false;
-                    return;
-                }
-                var wpDict = {};
-                for (var i = 0; i < result.webparts.length; i++) {
-                    var wp = new CSREditor.WebPartModel(_this, result.webparts[i]);
-                    wpDict[wp.wpq] = wp;
-                    _this.webparts.push(wp);
-                }
-                for (var i = 0; i < result.displayTemplates.length; i++) {
-                    var siteCollUrl = _this.siteServerRelativeUrl == "/" ? "" : _this.siteServerRelativeUrl;
-                    var displayTemplateUrl = result.displayTemplates[i].info.TemplateUrl;
-                    displayTemplateUrl = displayTemplateUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
-                    displayTemplateUrl = CSREditor.Utils.cutOffQueryString(displayTemplateUrl.replace(' ', '%20'));
-                    displayTemplateUrl = displayTemplateUrl.replace(/\.js$/, '.html');
-                    for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
-                        if (_this.otherFiles[o].url == displayTemplateUrl) {
-                            var fm = _this.otherFiles[o];
-                            fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
-                            fm.displayTemplateData = result.displayTemplates[i].info;
-                            _this.otherFiles.remove(fm);
-                            _this.displayTemplates.push(fm);
-                        }
-                    }
-                }
-                CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (jsLinkInfo, errorInfo) {
-                    _this.loading = false;
-                    if (errorInfo || jsLinkInfo == "error") {
-                        if (errorInfo)
-                            console.log(errorInfo);
-                        alert("There was an error when getting list of files. Please check console for details.");
-                        return;
-                    }
-                    if (jsLinkInfo == "personal") {
-                        _this.personalView = true;
-                        return;
-                    }
-                    for (var wpqId in jsLinkInfo) {
-                        jsLinkInfo[wpqId].forEach(function (url) {
-                            var addedFile = wpDict[wpqId].appendFileToList(url);
-                            if (addedFile != null) {
-                                for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
-                                    if (_this.otherFiles[o].url == addedFile.url)
-                                        _this.otherFiles.remove(_this.otherFiles[o]);
-                                }
-                            }
-                        });
-                    }
-                });
-            });
-        };
-        FilesList.prototype.pathInputKeyDown = function (data, event) {
-            var _this = this;
-            return CSREditor.Utils.safeEnterPath(event, this.filesPathEntered, this.fixupFilesPath.bind(this), function () { _this.changePathDialogShown = false; });
-        };
-        FilesList.prototype.fixupFilesPath = function () {
-            if (this.filesPathEntered[0] != '/')
-                this.filesPathEntered = '/' + this.filesPathEntered;
-            if (this.filesPathEntered[this.filesPathEntered.length - 1] != '/')
-                this.filesPathEntered = this.filesPathEntered + '/';
-            this.changePathDialogShown = false;
-            this.filesPath = this.filesPathEntered;
-            this.pathRelativeTo = this.pathRelativeToEntered;
-        };
-        FilesList.prototype.addOtherFiles = function (fileUrls) {
-            for (var i = 0; i < fileUrls.length; i++) {
-                var fileModel = new CSREditor.FileModel(null, this, fileUrls[i]);
-                this.otherFiles.push(fileModel);
-            }
-        };
-        FilesList.prototype.refreshCSR = function (url, content) {
-            this.currentFile.published = false;
-            if (this.currentFile.paused)
-                return;
-            url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
-            if (url[0] != '/')
-                url = '/' + url;
-            content = content.replace(/\r?\n\s*|\r\s*/g, ' ').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_performCSRRefresh(url, content));
-        };
-        FilesList.prototype.saveChangesToFile = function (url, content, saveNow) {
-            var _this = this;
-            url = CSREditor.Utils.toRelative(url, this.domainPart);
-            this.savingQueue[url] = { content: content, cooldown: 3 };
-            if (saveNow)
-                this.savingQueue[url].cooldown = 1;
-            if (!this.savingProcess) {
-                this.savingProcess = setInterval(function () {
-                    for (var fileUrl in _this.savingQueue) {
-                        _this.savingQueue[fileUrl].cooldown--;
-                        if (_this.savingQueue[fileUrl].cooldown <= 0) {
-                            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(_this.savingQueue[fileUrl].content)), CSREditor.SPActions.getCode_checkFileSaved(), function (result, errorInfo) {
-                                if (errorInfo || result == "error") {
-                                    alert("Error occured when saving file " + fileUrl + ". Please check console for details.");
-                                    if (errorInfo)
-                                        console.log(errorInfo);
-                                }
-                            });
-                            delete _this.savingQueue[fileUrl];
-                        }
-                    }
-                }, 2000);
-            }
-        };
-        return FilesList;
-    }());
-    CSREditor.FilesList = FilesList;
-})(CSREditor || (CSREditor = {}));
-var CSREditor;
-(function (CSREditor) {
-    var IntellisenseHelper = (function () {
-        function IntellisenseHelper(typeScriptService, editor) {
-            var _this = this;
-            this.tooltipLastPos = { line: -1, ch: -1 };
-            this.fieldNames = [];
-            this.typeScriptService = typeScriptService;
-            editor.on("cursorActivity", function (cm) {
-                if (cm.getDoc().getCursor().line != _this.tooltipLastPos.line || cm.getDoc().getCursor().ch < _this.tooltipLastPos.ch) {
-                    $('.tooltip').remove();
-                }
-            });
-        }
-        IntellisenseHelper.prototype.setFieldInternalNames = function (fieldNames) {
-            this.fieldNames = fieldNames;
-        };
-        IntellisenseHelper.prototype.joinParts = function (displayParts) {
-            if (displayParts)
-                return displayParts.map(function (p) { return p.kind == "punctuation" || p.kind == "space" ? p.text : "<span class=\"" + p.kind + "\">" + p.text + "</span>"; }).join("").replace('\n', '<br/>');
-            else
-                return '';
-        };
-        IntellisenseHelper.prototype.showCodeMirrorHint = function (cm, list) {
-            var _this = this;
-            list.sort(function (l, r) {
-                if (l.displayText > r.displayText)
-                    return 1;
-                if (l.displayText < r.displayText)
-                    return -1;
-                return 0;
-            });
-            cm.getEditor()["showHint"]({
-                completeSingle: false,
-                hint: function (cm) {
-                    var cur = cm.getCursor();
-                    var token = cm.getTokenAt(cur);
-                    var completionInfo = null;
-                    var show_words = [];
-                    if (token.string == ".") {
-                        for (var i = 0; i < list.length; i++) {
-                            if (list[i].livePreview == false)
-                                show_words.push(list[i]);
-                        }
-                        completionInfo = { from: cur, to: cur, list: show_words };
-                    }
-                    else if (token.string == "," || token.string == "(") {
-                        completionInfo = { from: cur, to: cur, list: list };
-                    }
-                    else {
-                        for (var i = 0; i < list.length; i++) {
-                            if (list[i].text.toLowerCase().indexOf(token.string.toLowerCase().replace(/\"$/, '')) > -1)
-                                show_words.push(list[i]);
-                        }
-                        completionInfo = {
-                            from: { line: cur.line, ch: token.start },
-                            to: { line: cur.line, ch: token.end },
-                            list: show_words
-                        };
-                    }
-                    var tooltip;
-                    CodeMirror.on(completionInfo, "select", function (completion, element) {
-                        $('.tooltip').remove();
-                        if (!completion.typeInfo && completion.pos) {
-                            var details = _this.typeScriptService.getCompletionDetails(completion.pos, completion.text);
-                            completion.typeInfo = _this.joinParts(details.displayParts);
-                            completion.docComment = _this.joinParts(details.documentation);
-                        }
-                        if (completion.typeInfo) {
-                            $(element).tooltip({
-                                html: true,
-                                title: '<div class="tooltip-typeInfo">' + completion.typeInfo + '</div>' + '<div class="tooltip-docComment">' + completion.docComment.replace('\n', '<br/>') + '</div>',
-                                trigger: 'manual', container: 'body', placement: 'right'
-                            });
-                            $(element).tooltip('show');
-                        }
-                    });
-                    CodeMirror.on(completionInfo, "close", function () {
-                        $('.tooltip').remove();
-                    });
-                    return completionInfo;
-                }
-            });
-        };
-        IntellisenseHelper.prototype.showAutoCompleteDropDown = function (cm, changePosition) {
-            var completions = this.typeScriptService.getCompletions(changePosition);
-            if (completions == null)
-                return;
-            $('.tooltip').remove();
-            var list = [];
-            for (var i = 0; i < completions.entries.length; i++) {
-                list.push({
-                    text: completions.entries[i].name,
-                    displayText: completions.entries[i].name,
-                    kind: completions.entries[i].kind,
-                    pos: changePosition,
-                    livePreview: false
-                });
-            }
-            this.showCodeMirrorHint(cm, list);
-        };
-        IntellisenseHelper.prototype.showFunctionTooltip = function (cm, changePosition) {
-            var _this = this;
-            $('.tooltip').remove();
-            var signatures = this.typeScriptService.getSignature(changePosition);
-            if (signatures && signatures.items && signatures.selectedItemIndex >= 0) {
-                var signature = signatures.items[signatures.selectedItemIndex];
-                var paramsString = signature.parameters
-                    .map(function (p) { return _this.joinParts(p.displayParts); })
-                    .join(this.joinParts(signature.separatorDisplayParts));
-                var signatureString = this.joinParts(signature.prefixDisplayParts) + paramsString + this.joinParts(signature.suffixDisplayParts);
-                this.tooltipLastPos = cm.getCursor();
-                var cursorCoords = cm.getEditor().cursorCoords(cm.getCursor(), "page");
-                var domElement = cm.getEditor().getWrapperElement();
-                $(domElement).data('bs.tooltip', false).tooltip({
-                    html: true,
-                    title: '<div class="tooltip-typeInfo">' + signatureString + '</div>' + '<div class="tooltip-docComment">' + this.joinParts(signature.documentation) + '</div>',
-                    trigger: 'manual', container: 'body', placement: 'bottom'
-                });
-                $(domElement).off('shown.bs.tooltip').on('shown.bs.tooltip', function () {
-                    $('.tooltip').css('top', cursorCoords.bottom + "px").css('left', cursorCoords.left + "px");
-                });
-                $(domElement).tooltip('show');
-            }
-        };
-        IntellisenseHelper.prototype.scriptChanged = function (cm, changeText, changePos) {
-            if (changeText == '.') {
-                this.showAutoCompleteDropDown(cm, changePos);
-            }
-            else if (changeText == '(' || changeText == ',') {
-                this.showFunctionTooltip(cm, changePos);
-            }
-            else if (changeText == ')') {
-                $('.tooltip').remove();
-            }
-        };
-        return IntellisenseHelper;
-    }());
-    CSREditor.IntellisenseHelper = IntellisenseHelper;
-})(CSREditor || (CSREditor = {}));
-var CSREditor;
-(function (CSREditor) {
-    var NewFileHelper = (function () {
-        function NewFileHelper() {
-        }
-        NewFileHelper.performNewFileCreation = function (filesList, webpart) {
-            var _this = this;
-            webpart.adding = false;
-            webpart.loading = true;
-            if (webpart.newFileName.indexOf('.js') == -1)
-                webpart.newFileName += '.js';
-            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_createFileInSharePoint(filesList.pathRelativeTo + filesList.filesPath.toLowerCase(), webpart.newFileName, webpart.id, webpart.ctxKey), CSREditor.SPActions.getCode_checkFileCreated(), function (result, errorInfo) {
-                webpart.loading = false;
-                if (errorInfo || result == "error") {
-                    alert("There was an error when creating the file. Please check console for details.");
-                    if (errorInfo)
-                        console.log(errorInfo);
-                }
-                else if (result == "created") {
-                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
-                    var file = webpart.appendFileToList(fullUrl, true);
-                    var templateText = _this.generateTemplate(webpart, filesList.filesPath);
-                    filesList.setEditorText(file.url, templateText, true);
-                }
-                else if (result == "existing") {
-                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
-                    webpart.appendFileToList(fullUrl, false);
-                }
-            });
-        };
-        NewFileHelper.generateTemplate = function (webpart, filesPath) {
-            if (!webpart.fields || webpart.fields.length == 0)
-                webpart.fields = ['<field internal name>'];
-            var fieldMarkup = '      //     Fields: {\r\n';
-            for (var f = 0; f < webpart.fields.length; f++) {
-                var field = webpart.fields[f];
-                if (field == "Attachments" || field == "Created" || field == "Modified"
-                    || field == "Author" || field == "Editor" || field == "_UIVersionString")
-                    continue;
-                fieldMarkup +=
-                    '      //         "' + field + '": {\r\n' +
-                        '      //             View: function(ctx) { return ""; },\r\n' +
-                        '      //             EditForm: function(ctx) { return ""; },\r\n' +
-                        '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
-                        '      //             NewForm: function(ctx) { return ""; }\r\n' +
-                        ((f === webpart.fields.length - 1) ?
-                            '      //         }\r\n'
-                            :
-                                '      //         },\r\n');
-            }
-            ;
-            fieldMarkup += '      //     },\r\n';
-            var wptype = webpart.isListForm ? "LFWP" : "XLV";
-            return '// The file has been created, saved into "' + filesPath + '"\r\n' +
-                '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
-                'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
-                '  function getBaseHtml(ctx) {\r\n' +
-                '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
-                '  }\r\n\r\n' +
-                '  function init() {\r\n\r\n' +
-                '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
-                '      // OnPreRender: function(ctx) { },\r\n\r\n' +
-                '      Templates: {\r\n\r\n' +
-                (webpart.isListForm ? '' :
-                    '      //     View: function(ctx) { return ""; },\r\n' +
-                        '      //     Header: function(ctx) { return ""; },\r\n' +
-                        '      //     Body: function(ctx) { return ""; },\r\n' +
-                        '      //     Group: function(ctx) { return ""; },\r\n' +
-                        '      //     Item: function(ctx) { return ""; },\r\n') +
-                fieldMarkup +
-                (webpart.isListForm ? '' :
-                    '      //     Footer: function(ctx) { return ""; }\r\n') +
-                '\r\n' +
-                '      },\r\n\r\n' +
-                '      // OnPostRender: function(ctx) { },\r\n\r\n' +
-                '      ListTemplateType: ' + webpart.listTemplateType + '\r\n\r\n' +
-                '    });\r\n' +
-                '  }\r\n\r\n' +
-                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + filesPath + webpart.newFileName + '"), init);\r\n' +
-                '  init();\r\n\r\n' +
-                '});\r\n';
-        };
-        return NewFileHelper;
-    }());
-    CSREditor.NewFileHelper = NewFileHelper;
-})(CSREditor || (CSREditor = {}));
-var CSREditor;
-(function (CSREditor) {
-    var Panel = (function () {
-        function Panel() {
-            this.fileName = null;
-            this.modifiedFilesContent = {};
-            this.needSave = false;
-        }
-        Panel.start = function () {
-            var panel = new Panel();
-            panel.initialize();
-        };
-        Panel.prototype.initialize = function () {
-            var _this = this;
-            this.typeScriptService = new CSREditor.TypeScriptService();
-            this.editorCM = this.initEditor();
-            this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
-            this.filesList = new CSREditor.FilesList(this.loadUrlToEditor.bind(this), this.setEditorText.bind(this));
-            this.loadWindowKeys();
-            CSREditor.ChromeIntegration.setNavigatedListener(function (pageUrl) {
-                CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkPageIsLoaded(), function () {
-                    _this.setEditorText(null, "");
-                    _this.filesList.reload();
-                    _this.loadWindowKeys();
-                });
-            });
-        };
-        Panel.prototype.loadWindowKeys = function () {
-            var _this = this;
-            CSREditor.ChromeIntegration.eval("keys(window)", function (result, errorInfo) {
-                if (!errorInfo) {
-                    var windowTS = '';
-                    var completions = _this.typeScriptService.getCompletions(0);
-                    var existingSymbols = {};
-                    if (completions != null) {
-                        for (var i = 0; i < completions.entries.length; i++)
-                            existingSymbols[completions.entries[i].name] = 1;
-                    }
-                    for (var k = 0; k < result.length; k++) {
-                        if (typeof existingSymbols[result[k]] == 'undefined' && /^[\$a-zA-Z_][\$a-zA-Z0-9_]+$/.test(result[k]))
-                            windowTS += 'var ' + result[k] + ': any;';
-                    }
-                    _this.typeScriptService.windowChanged(windowTS);
-                }
-            });
-        };
-        Panel.prototype.initEditor = function () {
-            var _this = this;
-            var editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
-                lineNumbers: true,
-                matchBrackets: true,
-                mode: "text/typescript",
-                readOnly: true,
-                extraKeys: {
-                    "Ctrl-K": "toggleComment"
-                }
-            });
-            editor.on("change", function (editor, changeList) { _this.processChanges(editor.getDoc(), changeList); });
-            return editor;
-        };
-        Panel.prototype.loadUrlToEditor = function (url) {
-            var _this = this;
-            if (url in this.modifiedFilesContent)
-                this.setEditorText(url, this.modifiedFilesContent[url]);
-            else {
-                // clear content and make readonly while loading
-                this.setEditorText(null, '');
-                CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_getFileContent(url), CSREditor.SPActions.getCode_checkFileContentRetrieved(), function (result, errorInfo) {
-                    if (errorInfo || result == "error") {
-                        _this.setEditorText(null, "");
-                        _this.filesList.fileError = "There was an error opening file '" + url + "'.<br/>Check console for details.";
-                    }
-                    else if (result == "notFound") {
-                        var isOtherFile = false;
-                        for (var _i = 0, _a = _this.filesList.otherFiles; _i < _a.length; _i++) {
-                            var otherFile = _a[_i];
-                            if (otherFile.url == url) {
-                                isOtherFile = true;
-                                break;
-                            }
-                        }
-                        _this.setEditorText(null, "");
-                        if (isOtherFile)
-                            _this.filesList.fileError = "File is referenced by the page but was not found: " + url;
-                        else
-                            _this.filesList.fileError = "File '" + url + "' is referenced by JSLink but was not found.<br/>If you want to remove it from JSLink, use delete icon (<i class='fa fa-trash-o'></i>) next to the filename.";
-                    }
-                    else
-                        _this.setEditorText(url, result);
-                });
-            }
-        };
-        Panel.prototype.setEditorText = function (url, text, newlyCreated) {
-            var _this = this;
-            if (newlyCreated === void 0) { newlyCreated = false; }
-            this.filesList.fileError = null;
-            this.fileName = url;
-            this.editorCM.setOption("mode", url != null && url.endsWith(".js") ? "text/typescript" : "text/html");
-            this.needSave = false;
-            this.editorCM.getDoc().setValue(text);
-            this.editorCM.setOption("readOnly", url == null);
-            if (url == null)
-                return;
-            this.needSave = true;
-            if (newlyCreated) {
-                this.modifiedFilesContent[url] = text;
-                this.filesList.saveChangesToFile(url, text, true);
-            }
-            this.intellisenseHelper.setFieldInternalNames([]);
-            if (!this.filesList.currentWebPart)
-                return;
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), function (result, errorInfo) {
-                var fieldNames = [];
-                for (var i in result) {
-                    var f = result[i].Name;
-                    if (_this.filesList.currentWebPart.isListForm && (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString"))
-                        continue;
-                    fieldNames.push(result[i].Name);
-                }
-                _this.intellisenseHelper.setFieldInternalNames(fieldNames);
-            });
-        };
-        Panel.prototype.processChanges = function (cm, changeObj) {
-            if (!changeObj)
-                return;
-            var isTS = this.editorCM.getOption("mode") == "text/typescript";
-            var isHtml = this.editorCM.getOption("mode") == "text/html";
-            if (isTS)
-                this.typeScriptService.scriptChanged(cm.getValue(), cm.indexFromPos(changeObj.from), cm.indexFromPos(changeObj.to) - cm.indexFromPos(changeObj.from));
-            var url = this.fileName;
-            if (url != null) {
-                var text = cm.getValue();
-                var transformer = new DisplayTemplateTransformer(text, this.filesList.currentFile.displayTemplateUniqueId, this.filesList.currentFile.displayTemplateData);
-                if (isTS)
-                    this.filesList.refreshCSR(url, this.typeScriptService.getJs());
-                else if (isHtml) {
-                    try {
-                        var jsContent = transformer.Transform();
-                        this.filesList.refreshCSR(url, jsContent);
-                        this.typeScriptService.scriptChanged(jsContent, 0, 0);
-                    }
-                    catch (e) {
-                        console.log(e);
-                    }
-                }
-                if (this.needSave) {
-                    this.filesList.saveChangesToFile(url, text);
-                    this.modifiedFilesContent[url] = text;
-                }
-                if (changeObj.text.length == 1)
-                    this.intellisenseHelper.scriptChanged(cm, changeObj.text[0], transformer.GetPositionInJs(cm.indexFromPos(changeObj.to) + 1));
-                this.checkSyntax(cm, transformer);
-            }
-        };
-        Panel.prototype.checkSyntax = function (cm, transformer) {
-            var _this = this;
-            var allMarkers = cm.getAllMarks();
-            for (var i = 0; i < allMarkers.length; i++) {
-                allMarkers[i].clear();
-            }
-            if (Panel.checkSyntaxTimeout)
-                clearTimeout(Panel.checkSyntaxTimeout);
-            Panel.checkSyntaxTimeout = setTimeout(function () {
-                var errors = _this.typeScriptService.getErrors();
-                for (var i = 0; i < errors.length; i++) {
-                    var text = "";
-                    if (typeof errors[i].messageText == "string")
-                        text = errors[i].messageText;
-                    else {
-                        var chain = errors[i].messageText;
-                        var texts = [];
-                        while (chain.next) {
-                            texts.push(chain.messageText);
-                            chain = chain.next;
-                        }
-                        text = texts.join('\n  ');
-                    }
-                    var start = transformer.GetPositionInHtml(errors[i].start);
-                    var end = transformer.GetPositionInHtml(errors[i].start + errors[i].length);
-                    if (start != -1 && end != -1)
-                        cm.markText(cm.posFromIndex(start), cm.posFromIndex(end), {
-                            className: "syntax-error",
-                            title: text
-                        });
-                }
-            }, 1500);
-        };
-        Panel.checkSyntaxTimeout = 0;
-        return Panel;
-    }());
-    CSREditor.Panel = Panel;
-})(CSREditor || (CSREditor = {}));
 var B64;
 var CSREditor;
 (function (CSREditor) {
@@ -1039,11 +864,12 @@ var CSREditor;
         };
         SPActions.listCsrWebparts = function () {
             var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
-            var webparts = [];
+            var jsLinkWebparts = [];
+            var searchResultWebparts = [];
             var wp_properties = [];
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
-                return { webparts: [], displayTemplates: [] };
+                return { listWebparts: [], searchWebparts: [], displayTemplates: [] };
             }
             var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
             for (var i = 0; i < webpartZones.length; i++) {
@@ -1058,7 +884,7 @@ var CSREditor;
                             continue;
                         fields.push(f);
                     }
-                    webparts.push({
+                    jsLinkWebparts.push({
                         title: 'LFWP ' + controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
@@ -1071,7 +897,7 @@ var CSREditor;
                 else if (window["WPQ" + wpqId + "SchemaData"]) {
                     var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
                     var ctx = window["ctx" + ctxNumber];
-                    webparts.push({
+                    jsLinkWebparts.push({
                         title: 'XLV: ' + ctx.ListTitle,
                         wpqId: wpqId,
                         wpId: wpId,
@@ -1081,20 +907,33 @@ var CSREditor;
                         listTemplateType: ctx.ListTemplateType
                     });
                 }
-                wpqId++;
+                else if (document.querySelector("#WebPartWPQ" + wpqId + " > [componentid$='_csr']")) {
+                    var dtElement = document.querySelector("#WebPartWPQ" + wpqId + " > [componentid$='_csr']");
+                    var dtControl = Srch.U.getClientComponent(dtElement);
+                    if (dtControl && dtControl.get_itemBodyTemplateId)
+                        searchResultWebparts.push({
+                            title: "SearchResults " + (searchResultWebparts.length + 1),
+                            wpqId: wpqId,
+                            wpId: wpId,
+                            controlTemplate: dtControl.get_renderTemplateId(),
+                            itemTemplate: dtControl.get_itemTemplateId(),
+                            itemBodyTemplate: dtControl.get_itemBodyTemplateId(),
+                            groupTemplate: dtControl.get_groupTemplateId()
+                        });
+                }
             }
             delete window["g_Cisar_JSLinkUrls"];
-            if (webparts.length > 0) {
+            if (jsLinkWebparts.length > 0) {
                 SP.SOD.executeFunc("sp.js", "SP.ClientContext", function () {
                     var context = SP.ClientContext.get_current();
                     var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                     var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                    for (var i = 0; i < webparts.length; i++) {
-                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(webparts[i].wpId));
+                    for (var i = 0; i < jsLinkWebparts.length; i++) {
+                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(jsLinkWebparts[i].wpId));
                         var webpart = webpartDef.get_webPart();
                         var properties = webpart.get_properties();
                         context.load(properties);
-                        wp_properties.push({ wpqId: webparts[i].wpqId, properties: properties });
+                        wp_properties.push({ wpqId: jsLinkWebparts[i].wpqId, properties: properties });
                     }
                     context.executeQueryAsync(function () {
                         var urls = {};
@@ -1111,7 +950,7 @@ var CSREditor;
                         window["g_Cisar_JSLinkUrls"] = urls;
                     }, function (s, args) {
                         console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
-                        console.log(webparts);
+                        console.log(jsLinkWebparts);
                         window["g_Cisar_JSLinkUrls"] = 'error';
                     });
                 });
@@ -1133,7 +972,8 @@ var CSREditor;
                 };
             });
             return {
-                webparts: webparts,
+                listWebparts: jsLinkWebparts,
+                searchWebparts: searchResultWebparts,
                 displayTemplates: displayTemplates
             };
         };
@@ -1155,10 +995,10 @@ var CSREditor;
         SPActions.retrieveFieldsInfo = function (ctxKey) {
             return window[ctxKey]["ListSchema"].Field || window[ctxKey]["ListSchema"];
         };
-        SPActions.getCode_createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
-            return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + ctxKey + "');";
+        SPActions.getCode_createFileInSharePoint = function (path, fileName, wpId, content64) {
+            return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + content64 + "');";
         };
-        SPActions.createFileInSharePoint = function (path, fileName, wpId, ctxKey) {
+        SPActions.createFileInSharePoint = function (path, fileName, wpId, content64) {
             path = path.replace('%20', ' ');
             var fullPath = path.replace('~sitecollection/', (_spPageContextInfo.siteServerRelativeUrl + '/').replace('//', '/'));
             fullPath = fullPath.replace('~site/', (_spPageContextInfo.webServerRelativeUrl + '/').replace('//', '/'));
@@ -1170,12 +1010,14 @@ var CSREditor;
                 else
                     files = context.get_site().get_rootWeb().getFolderByServerRelativeUrl(fullPath).get_files();
                 context.load(files, "Include(Name)");
-                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
-                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
-                var webpart = webpartDef.get_webPart();
-                var properties = webpart.get_properties();
-                context.load(properties);
+                if (wpId) {
+                    var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                    var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                    var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                    var webpart = webpartDef.get_webPart();
+                    var properties = webpart.get_properties();
+                    context.load(properties);
+                }
                 var setupJsLink = function (properties) {
                     var jsLinkString = (properties.get_item("JSLink") || "") + "|" + path + fileName;
                     if (jsLinkString[0] == '|')
@@ -1195,11 +1037,13 @@ var CSREditor;
                             fileExists = true;
                     }
                     if (fileExists) {
-                        var script = document.createElement("script");
-                        script.src = fullPath + fileName;
-                        script.type = "text/javascript";
-                        document.head.appendChild(script);
-                        setupJsLink(properties);
+                        if (wpId) {
+                            var script = document.createElement("script");
+                            script.src = fullPath + fileName;
+                            script.type = "text/javascript";
+                            document.head.appendChild(script);
+                            setupJsLink(properties);
+                        }
                         context.executeQueryAsync(function () {
                             window["g_Cisar_fileCreationResult"] = "existing";
                             console.log('CSREditor: existing file has been successfully linked to the webpart.');
@@ -1207,11 +1051,12 @@ var CSREditor;
                     }
                     else {
                         var creationInfo = new SP.FileCreationInformation();
-                        creationInfo.set_content(new SP.Base64EncodedByteArray());
+                        creationInfo.set_content(new SP.Base64EncodedByteArray(content64));
                         creationInfo.set_url(fileName);
                         var file = files.add(creationInfo);
                         context.load(file, 'CheckOutType');
-                        setupJsLink(properties);
+                        if (wpId)
+                            setupJsLink(properties);
                         context.executeQueryAsync(function () {
                             console.log('Cisar: file has been created successfully.');
                             window["g_Cisar_fileCreationResult"] = "created";
@@ -1237,145 +1082,6 @@ var CSREditor;
             }
             else
                 return "wait";
-        };
-        SPActions.getCode_performCSRRefresh = function (url, content) {
-            return "(" + SPActions.performCSRRefresh + ")('" + url + "', '" + content + "');";
-        };
-        SPActions.performCSRRefresh = function (url, content) {
-            var extend = function (dest, source) {
-                for (var p in source) {
-                    if (source[p] && source[p].constructor && source[p].constructor === Object) {
-                        dest[p] = dest[p] || {};
-                        arguments.callee(dest[p], source[p]);
-                    }
-                    else {
-                        dest[p] = source[p];
-                    }
-                }
-                return dest;
-            };
-            var substract_objects = function (obj1, obj2) {
-                for (var p in obj2) {
-                    if (Object.prototype.toString.call(obj2[p]) == "[object Array]" && p in obj1)
-                        obj1[p] = [];
-                    else if (typeof (obj2[p]) == "function" && p in obj1)
-                        delete obj1[p];
-                    else if (typeof (obj2[p]) == "object" && p in obj1)
-                        substract_objects(obj1[p], obj2[p]);
-                }
-            };
-            var fileName = url.substr(url.lastIndexOf('/') + 1);
-            if (window["g_templateOverrides_" + fileName])
-                substract_objects(SPClientTemplates.TemplateManager["_TemplateOverrides"], window["g_templateOverrides_" + fileName]);
-            var savedRegisterOverridesMethod = SPClientTemplates.TemplateManager.RegisterTemplateOverrides;
-            SPClientTemplates.TemplateManager.RegisterTemplateOverrides = function (options) {
-                SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
-                var savedTemplateOverrides = {};
-                extend(savedTemplateOverrides, SPClientTemplates.TemplateManager["_TemplateOverrides"]);
-                for (var p in SPClientTemplates.TemplateManager["_TemplateOverrides"])
-                    SPClientTemplates.TemplateManager["_TemplateOverrides"][p] = {};
-                savedRegisterOverridesMethod(options);
-                window["g_templateOverrides_" + fileName] = {};
-                extend(window["g_templateOverrides_" + fileName], SPClientTemplates.TemplateManager["_TemplateOverrides"]);
-                substract_objects(savedTemplateOverrides, { OnPreRender: window["g_templateOverrides_" + fileName].OnPreRender, OnPostRender: window["g_templateOverrides_" + fileName].OnPostRender });
-                SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
-                savedRegisterOverridesMethod(options);
-                var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
-                for (var i = 0; i < webpartZones.length; i++) {
-                    var wpqId = +webpartZones[i].attributes["id"].value.substr("MSOZoneCell_WebPartWPQ".length);
-                    if (window["WPQ" + wpqId + "FormCtx"]) {
-                        var ctx = window["WPQ" + wpqId + "FormCtx"];
-                        var i = 0;
-                        var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
-                        for (var f in ctx.ListSchema) {
-                            if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
-                                continue;
-                            var nodesToReplace = [];
-                            for (var n = 0; n < rows[i].childNodes.length; n++)
-                                if (rows[i].childNodes[n].nodeType != 8)
-                                    nodesToReplace.push(rows[i].childNodes[n]);
-                            var span = document.createElement("span");
-                            span.id = "WPQ" + wpqId + ctx.ListAttributes.Id + f;
-                            rows[i].appendChild(span);
-                            for (var n = 0; n < nodesToReplace.length; n++)
-                                span.appendChild(nodesToReplace[n]);
-                            i++;
-                        }
-                        window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
-                    }
-                    else if (window["WPQ" + wpqId + "SchemaData"]) {
-                        var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
-                        var ctx = window["ctx" + ctxNumber];
-                        for (var f in ctx.ListSchema.Field)
-                            delete ctx.ListSchema.Field[f].fieldRenderer;
-                        ctx.DebugMode = true;
-                        if (ctx.inGridMode) {
-                            var searchDiv = $get("inplaceSearchDiv_WPQ" + wpqId);
-                            searchDiv.parentNode.removeChild(searchDiv);
-                            var gridInitInfo = window["g_SPGridInitInfo"][ctx.view];
-                            gridInitInfo.initialized = false;
-                            window["InitGrid"](gridInitInfo, ctx, false);
-                        }
-                        else
-                            window["RenderListView"](ctx, ctx.wpq);
-                    }
-                    wpqId++;
-                }
-            };
-            if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {
-                window["ko"].cleanNode(document.body);
-            }
-            if ($get('csrErrorDiv') != null)
-                document.body.removeChild($get('csrErrorDiv'));
-            if ($get('csrErrorDivText') != null)
-                document.body.removeChild($get('csrErrorDivText'));
-            try {
-                eval(content);
-                if ('Srch' in window && Srch.U) {
-                    var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
-                    for (var i = 0; i < elements.length; i++) {
-                        var control = Srch.U.getClientComponent(elements[i]);
-                        if (control && (control instanceof Srch.DisplayControl || control instanceof Srch.Result)) {
-                            while (elements[i].hasChildNodes())
-                                elements[i].removeChild(elements[i].childNodes[0]);
-                            control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(function (r) { return delete r.id; });
-                            control.render();
-                        }
-                    }
-                }
-            }
-            catch (err) {
-                console.log("Error when evaluating the CSR template code!");
-                console.log(err);
-                var div = document.createElement('div');
-                div.id = "csrErrorDiv";
-                div.style.backgroundColor = "#300";
-                div.style.opacity = "0.5";
-                div.style.position = "fixed";
-                div.style.top = "0";
-                div.style.left = "0";
-                div.style.bottom = "0";
-                div.style.right = "0";
-                div.style.zIndex = "101";
-                document.body.appendChild(div);
-                var textDiv = document.createElement('div');
-                textDiv.id = "csrErrorDivText";
-                textDiv.style.position = "fixed";
-                textDiv.style.backgroundColor = "#fff";
-                textDiv.style.border = "2px solid #000";
-                textDiv.style.padding = "10px 15px";
-                textDiv.style.width = "300px";
-                textDiv.style.top = "200px";
-                textDiv.style.left = "0";
-                textDiv.style.right = "0";
-                textDiv.style.margin = "0 auto";
-                textDiv.style.zIndex = "102";
-                textDiv.innerHTML = "Error when evaluating the CSR template code: " + err["message"];
-                document.body.appendChild(textDiv);
-            }
-            finally {
-                SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
-            }
         };
         SPActions.getCode_saveFileToSharePoint = function (url, content64) {
             return "(" + SPActions.saveFileToSharePoint + ")('" + url + "', '" + content64 + "');";
@@ -1513,6 +1219,42 @@ var CSREditor;
             else
                 return "wait";
         };
+        SPActions.getCode_setTemplates = function (wpId, controlTemplateId, groupTemplateId, itemTemplateId, itemBodyTemplateId) {
+            return "(" + SPActions.setTemplates + ")('" + wpId + "','" + controlTemplateId + "','" + groupTemplateId + "','" + itemTemplateId + "','" + itemBodyTemplateId + "');";
+        };
+        SPActions.setTemplates = function (wpId, controlTemplateId, groupTemplateId, itemTemplateId, itemBodyTemplateId) {
+            delete window["g_Cisar_TemplatesSaveResult"];
+            SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
+                var context = SP.ClientContext.get_current();
+                var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
+                var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
+                var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
+                var webpart = webpartDef.get_webPart();
+                webpart.get_properties().set_item("RenderTemplateId", controlTemplateId);
+                webpart.get_properties().set_item("GroupTemplateId", groupTemplateId);
+                webpart.get_properties().set_item("ItemTemplateId", itemTemplateId);
+                webpart.get_properties().set_item("ItemBodyTemplateId", itemBodyTemplateId);
+                webpartDef.saveWebPartChanges();
+                context.executeQueryAsync(function () {
+                    window["g_Cisar_TemplatesSaveResult"] = 'success';
+                }, function (sender, args) {
+                    window["g_Cisar_TemplatesSaveResult"] = 'error';
+                    console.log('Error when saving Templates: ' + args.get_message());
+                });
+            });
+        };
+        SPActions.getCode_checkTemplatesSaved = function () {
+            return "(" + SPActions.checkTemplatesSaved + ")();";
+        };
+        SPActions.checkTemplatesSaved = function () {
+            if (window["g_Cisar_TemplatesSaveResult"]) {
+                var result = window["g_Cisar_TemplatesSaveResult"];
+                delete window["g_Cisar_TemplatesSaveResult"];
+                return result;
+            }
+            else
+                return "wait";
+        };
         SPActions.getCode_removeFileFromSharePoint = function (url, wpId) {
             return "(" + SPActions.removeFileFromSharePoint + ")('" + url + "', '" + wpId + "');";
         };
@@ -1627,153 +1369,408 @@ var CSREditor;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
 (function (CSREditor) {
-    var TypeScriptServiceHost = (function () {
-        function TypeScriptServiceHost(libText) {
-            this.scriptVersion = {};
-            this.libText = "";
-            this.libTextLength = 0;
-            this.text = {};
-            this.changes = {};
-            this.libText = libText;
-            this.libTextLength = libText.length;
-            this.scriptVersion['csr-editor.ts'] = 0;
-            this.text['csr-editor.ts'] = '';
-            this.changes['csr-editor.ts'] = [];
-            this.scriptVersion['live.ts'] = 0;
-            this.text['live.ts'] = '';
-            this.changes['live.ts'] = [];
+    var SPLiveRefresh = (function () {
+        function SPLiveRefresh() {
         }
-        TypeScriptServiceHost.prototype.log = function (message) { console.log("tsHost: " + message); };
-        TypeScriptServiceHost.prototype.getCompilationSettings = function () { return { removeComments: true, target: 1 /* ES5 */ }; };
-        TypeScriptServiceHost.prototype.getScriptFileNames = function () { return ["libs.ts", "live.ts", "csr-editor.ts"]; };
-        TypeScriptServiceHost.prototype.getScriptVersion = function (fn) { return (this.scriptVersion[fn] || 0).toString(); };
-        TypeScriptServiceHost.prototype.getScriptSnapshot = function (fn) {
-            var snapshot, snapshotChanges, snapshotVersion;
-            if (fn == 'libs.ts')
-                return ts.ScriptSnapshot.fromString(this.libText);
-            else
-                return ts.ScriptSnapshot.fromString(this.text[fn]);
+        SPLiveRefresh.getCode_performCSRRefresh = function (url, content) {
+            return "(" + SPLiveRefresh.performCSRRefresh + ")('" + url + "', '" + content + "');";
         };
-        TypeScriptServiceHost.prototype.getCurrentDirectory = function () { return ""; };
-        TypeScriptServiceHost.prototype.getDefaultLibFileName = function () { return "libs.ts"; };
-        TypeScriptServiceHost.prototype.scriptChanged = function (fn, newText, startPos, changeLength) {
-            if (startPos === void 0) { startPos = 0; }
-            if (changeLength === void 0) { changeLength = 0; }
-            this.scriptVersion[fn]++;
-            this.text[fn] = newText;
-            if (startPos > 0 || changeLength > 0)
-                this.changes[fn].push(ts.createTextChangeRange(ts.createTextSpan(startPos, changeLength), newText.length));
-        };
-        return TypeScriptServiceHost;
-    }());
-    var TypeScriptService = (function () {
-        function TypeScriptService() {
-            var self = this;
-            var client = new XMLHttpRequest();
-            client.open('GET', 'Scripts/typings/libs.d.ts');
-            client.onreadystatechange = function () {
-                if (client.readyState != 4)
-                    return;
-                self.tsHost = new TypeScriptServiceHost(client.responseText);
-                self.tsService = ts.createLanguageService(self.tsHost, ts.createDocumentRegistry());
+        SPLiveRefresh.performCSRRefresh = function (url, content) {
+            var extend = function (dest, source) {
+                for (var p in source) {
+                    if (source[p] && source[p].constructor && source[p].constructor === Object) {
+                        dest[p] = dest[p] || {};
+                        arguments.callee(dest[p], source[p]);
+                    }
+                    else {
+                        dest[p] = source[p];
+                    }
+                }
+                return dest;
             };
-            client.send();
-        }
-        TypeScriptService.prototype.scriptChanged = function (newText, startPos, changeLength) {
-            this.tsHost.scriptChanged('csr-editor.ts', newText, startPos, changeLength);
-        };
-        TypeScriptService.prototype.windowChanged = function (newText) {
-            this.tsHost.scriptChanged('live.ts', newText);
-        };
-        TypeScriptService.prototype.getSymbolInfo = function (position) {
-            return this.tsService.getEncodedSemanticClassifications('csr-editor.ts', position);
-        };
-        TypeScriptService.prototype.getCompletions = function (position) {
-            return this.tsService.getCompletionsAtPosition('csr-editor.ts', position);
-        };
-        TypeScriptService.prototype.getCompletionDetails = function (position, name) {
-            return this.tsService.getCompletionEntryDetails('csr-editor.ts', position, name);
-        };
-        TypeScriptService.prototype.getSignature = function (position) {
-            return this.tsService.getSignatureHelpItems('csr-editor.ts', position);
-        };
-        TypeScriptService.prototype.getErrors = function () {
-            var syntastic = this.tsService.getSyntacticDiagnostics('csr-editor.ts');
-            var semantic = this.tsService.getSemanticDiagnostics('csr-editor.ts');
-            return syntastic.concat(semantic);
-        };
-        TypeScriptService.prototype.getJs = function () {
-            return this.tsService.getEmitOutput('csr-editor.ts').outputFiles[0].text;
-        };
-        return TypeScriptService;
-    }());
-    CSREditor.TypeScriptService = TypeScriptService;
-})(CSREditor || (CSREditor = {}));
-var CSREditor;
-(function (CSREditor) {
-    var Utils = (function () {
-        function Utils() {
-        }
-        Utils.endsWith = function (s, suffix) {
-            return s.indexOf(suffix, s.length - suffix.length) !== -1;
-        };
-        Utils.cutOffQueryString = function (s) {
-            if (s.indexOf('?') > 0)
-                s = s.substr(0, s.indexOf('?'));
-            return s;
-        };
-        Utils.toRelative = function (url, baseUrl) {
-            url = url.toLowerCase().replace(baseUrl.toLowerCase(), '');
-            url = Utils.cutOffQueryString(url.replace(' ', '%20'));
-            if (url[0] != '/')
-                url = '/' + url;
-            return url;
-        };
-        Utils.safeEnterFileName = function (event, value, okCallback, cancelCallback) {
-            return Utils.safeEnterValue(event, value, okCallback, cancelCallback, false);
-        };
-        Utils.safeEnterPath = function (event, value, okCallback, cancelCallback) {
-            return Utils.safeEnterValue(event, value, okCallback, cancelCallback, true);
-        };
-        Utils.safeEnterValue = function (event, value, okCallback, cancelCallback, isPath) {
-            if ((event.keyCode == 13 && value != "") || event.keyCode == 27) {
-                if (event.keyCode == 13)
-                    okCallback();
-                else
-                    cancelCallback();
-                event.preventDefault();
-                event.stopPropagation();
+            var substract_objects = function (obj1, obj2) {
+                for (var p in obj2) {
+                    if (Object.prototype.toString.call(obj2[p]) == "[object Array]" && p in obj1)
+                        obj1[p] = [];
+                    else if (typeof (obj2[p]) == "function" && p in obj1)
+                        delete obj1[p];
+                    else if (typeof (obj2[p]) == "object" && p in obj1)
+                        substract_objects(obj1[p], obj2[p]);
+                }
+            };
+            var fileName = url.substr(url.lastIndexOf('/') + 1);
+            if (window["g_templateOverrides_" + fileName])
+                substract_objects(SPClientTemplates.TemplateManager["_TemplateOverrides"], window["g_templateOverrides_" + fileName]);
+            var savedRegisterOverridesMethod = SPClientTemplates.TemplateManager.RegisterTemplateOverrides;
+            SPClientTemplates.TemplateManager.RegisterTemplateOverrides = function (options) {
+                SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
+                var savedTemplateOverrides = {};
+                extend(savedTemplateOverrides, SPClientTemplates.TemplateManager["_TemplateOverrides"]);
+                for (var p in SPClientTemplates.TemplateManager["_TemplateOverrides"])
+                    SPClientTemplates.TemplateManager["_TemplateOverrides"][p] = {};
+                savedRegisterOverridesMethod(options);
+                window["g_templateOverrides_" + fileName] = {};
+                extend(window["g_templateOverrides_" + fileName], SPClientTemplates.TemplateManager["_TemplateOverrides"]);
+                substract_objects(savedTemplateOverrides, { OnPreRender: window["g_templateOverrides_" + fileName].OnPreRender, OnPostRender: window["g_templateOverrides_" + fileName].OnPostRender });
+                SPClientTemplates.TemplateManager["_TemplateOverrides"] = savedTemplateOverrides;
+                savedRegisterOverridesMethod(options);
+                var webpartZones = document.querySelectorAll('[id^="MSOZoneCell_WebPartWPQ"]');
+                for (var i = 0; i < webpartZones.length; i++) {
+                    var wpqId = +webpartZones[i].attributes["id"].value.substr("MSOZoneCell_WebPartWPQ".length);
+                    if (window["WPQ" + wpqId + "FormCtx"]) {
+                        var ctx = window["WPQ" + wpqId + "FormCtx"];
+                        var i = 0;
+                        var rows = document.querySelectorAll("#WebPartWPQ" + wpqId + " .ms-formtable tr .ms-formbody");
+                        for (var f in ctx.ListSchema) {
+                            if (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString")
+                                continue;
+                            var nodesToReplace = [];
+                            for (var n = 0; n < rows[i].childNodes.length; n++)
+                                if (rows[i].childNodes[n].nodeType != 8)
+                                    nodesToReplace.push(rows[i].childNodes[n]);
+                            var span = document.createElement("span");
+                            span.id = "WPQ" + wpqId + ctx.ListAttributes.Id + f;
+                            rows[i].appendChild(span);
+                            for (var n = 0; n < nodesToReplace.length; n++)
+                                span.appendChild(nodesToReplace[n]);
+                            i++;
+                        }
+                        window["SPClientForms"].ClientFormManager.GetClientForm("WPQ" + wpqId).RenderClientForm();
+                    }
+                    else if (window["WPQ" + wpqId + "SchemaData"]) {
+                        var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
+                        var ctx = window["ctx" + ctxNumber];
+                        for (var f in ctx.ListSchema.Field)
+                            delete ctx.ListSchema.Field[f].fieldRenderer;
+                        ctx.DebugMode = true;
+                        if (ctx.inGridMode) {
+                            var searchDiv = $get("inplaceSearchDiv_WPQ" + wpqId);
+                            searchDiv.parentNode.removeChild(searchDiv);
+                            var gridInitInfo = window["g_SPGridInitInfo"][ctx.view];
+                            gridInitInfo.initialized = false;
+                            window["InitGrid"](gridInitInfo, ctx, false);
+                        }
+                        else
+                            window["RenderListView"](ctx, ctx.wpq);
+                    }
+                    wpqId++;
+                }
+            };
+            if (window["ko"] && content.toLowerCase().indexOf("ko.applybindings") > -1) {
+                window["ko"].cleanNode(document.body);
             }
-            else {
-                var safe = false;
-                if (event.keyCode >= 65 && event.keyCode <= 90)
-                    safe = true;
-                if (event.keyCode >= 48 && event.keyCode <= 57 && event.shiftKey == false)
-                    safe = true;
-                if ([8, 35, 36, 37, 38, 39, 40, 46, 189].indexOf(event.keyCode) > -1)
-                    safe = true;
-                if (event.keyCode == 190 && event.shiftKey == false)
-                    safe = true;
-                if (event.char == "")
-                    safe = true;
-                if ([191, 32].indexOf(event.keyCode) > -1 && isPath)
-                    safe = true;
-                if (!safe) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return false;
+            if ($get('csrErrorDiv') != null)
+                document.body.removeChild($get('csrErrorDiv'));
+            if ($get('csrErrorDivText') != null)
+                document.body.removeChild($get('csrErrorDivText'));
+            try {
+                eval(content);
+                if ('Srch' in window && Srch.U) {
+                    var elements = document.querySelectorAll("div[webpartid] > [componentid$='_csr']");
+                    for (var i = 0; i < elements.length; i++) {
+                        var control = Srch.U.getClientComponent(elements[i]);
+                        if (control && control.render && control.get_itemBodyTemplateId) {
+                            while (elements[i].hasChildNodes())
+                                elements[i].removeChild(elements[i].childNodes[0]);
+                            control.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(function (r) { return delete r.id; });
+                            control.render();
+                        }
+                    }
                 }
             }
-            return true;
+            catch (err) {
+                console.log("Error when evaluating the CSR template code!");
+                console.log(err);
+                var div = document.createElement('div');
+                div.id = "csrErrorDiv";
+                div.style.backgroundColor = "#300";
+                div.style.opacity = "0.5";
+                div.style.position = "fixed";
+                div.style.top = "0";
+                div.style.left = "0";
+                div.style.bottom = "0";
+                div.style.right = "0";
+                div.style.zIndex = "101";
+                document.body.appendChild(div);
+                var textDiv = document.createElement('div');
+                textDiv.id = "csrErrorDivText";
+                textDiv.style.position = "fixed";
+                textDiv.style.backgroundColor = "#fff";
+                textDiv.style.border = "2px solid #000";
+                textDiv.style.padding = "10px 15px";
+                textDiv.style.width = "300px";
+                textDiv.style.top = "200px";
+                textDiv.style.left = "0";
+                textDiv.style.right = "0";
+                textDiv.style.margin = "0 auto";
+                textDiv.style.zIndex = "102";
+                textDiv.innerHTML = "Error when evaluating the CSR template code: " + err["message"];
+                document.body.appendChild(textDiv);
+            }
+            finally {
+                SPClientTemplates.TemplateManager.RegisterTemplateOverrides = savedRegisterOverridesMethod;
+            }
         };
-        return Utils;
+        return SPLiveRefresh;
     }());
-    CSREditor.Utils = Utils;
+    CSREditor.SPLiveRefresh = SPLiveRefresh;
+})(CSREditor || (CSREditor = {}));
+var B64;
+var CSREditor;
+(function (CSREditor) {
+    var FilesList = (function () {
+        function FilesList(panel) {
+            this.changePathDialogShown = false;
+            this.fileError = null;
+            this.pathRelativeToOptions = ['~sitecollection', '~site'];
+            this.pathRelativeToEntered = "";
+            this.filesPathEntered = "";
+            this.siteUrl = "";
+            this.webUrl = "";
+            this.siteServerRelativeUrl = "";
+            this.webServerRelativeUrl = "";
+            this.domainPart = "";
+            this.personalView = false;
+            this.webpartsLoadError = "";
+            this.pageContextInfoError = false;
+            this.savingQueue = {};
+            this.savingProcess = null;
+            this.panel = panel;
+            this.filesPath = localStorage['filesPath'] || "/Style Library/";
+            this.pathRelativeTo = localStorage['pathRelativeTo'] || "~sitecollection";
+            this.reload();
+            ko.track(this);
+            ko.getObservable(this, 'filesPath').subscribe(function (newValue) {
+                localStorage['filesPath'] = newValue;
+            });
+            ko.getObservable(this, 'pathRelativeTo').subscribe(function (newValue) {
+                localStorage['pathRelativeTo'] = newValue;
+            });
+            ko.applyBindings(this);
+            document.querySelector('.separator').onclick = function (ev) {
+                if (document.body.className.indexOf("fullscreen") > -1)
+                    document.body.className = document.body.className.replace("fullscreen", "");
+                else
+                    document.body.className += " fullscreen";
+            };
+        }
+        FilesList.prototype.reload = function () {
+            var _this = this;
+            this.listWebparts = [];
+            this.searchWebparts = [];
+            this.otherFiles = [];
+            this.displayTemplates = [];
+            this.currentWebPart = null;
+            this.currentFile = null;
+            this.personalView = false;
+            this.fileError = null;
+            this.webpartsLoadError = "";
+            this.pageContextInfoError = false;
+            this.loading = true;
+            CSREditor.ChromeIntegration.eval("_spPageContextInfo", function (result, errorInfo) {
+                if (errorInfo) {
+                    console.log(errorInfo);
+                    _this.pageContextInfoError = true;
+                    _this.loading = false;
+                    return;
+                }
+                _this.siteUrl = result.siteAbsoluteUrl.toLowerCase();
+                _this.webUrl = result.webAbsoluteUrl.toLowerCase();
+                _this.siteServerRelativeUrl = result.siteServerRelativeUrl.toLowerCase();
+                _this.webServerRelativeUrl = result.webServerRelativeUrl.toLowerCase();
+                _this.domainPart = result.siteServerRelativeUrl == '/' ? _this.siteUrl : _this.siteUrl.replace(result.siteServerRelativeUrl, '');
+                _this.pathRelativeToOptions.removeAll();
+                _this.pathRelativeToOptions.push('~sitecollection');
+                if (result.webServerRelativeUrl != result.siteServerRelativeUrl)
+                    _this.pathRelativeToOptions.push('~site');
+                CSREditor.ChromeIntegration.getAllResources(_this.siteUrl, function (urls) {
+                    _this.addOtherFiles(Object.keys(urls));
+                    _this.loadWebParts();
+                });
+            });
+        };
+        FilesList.prototype.loadWebParts = function () {
+            var _this = this;
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_listCsrWebparts(), function (result, errorInfo) {
+                if (errorInfo) {
+                    console.log(errorInfo);
+                    _this.webpartsLoadError = errorInfo.value || JSON.stringify(errorInfo);
+                    _this.loading = false;
+                    return;
+                }
+                var wpDict = {};
+                for (var i = 0; i < result.listWebparts.length; i++) {
+                    var wp = new CSREditor.ListWebpart(_this, result.listWebparts[i]);
+                    wpDict[wp.wpq] = wp;
+                    _this.listWebparts.push(wp);
+                }
+                for (var i = 0; i < result.searchWebparts.length; i++) {
+                    var swp = new CSREditor.SearchWebpart(_this, result.searchWebparts[i]);
+                    _this.searchWebparts.push(swp);
+                }
+                for (var i = 0; i < result.displayTemplates.length; i++) {
+                    var siteCollUrl = _this.siteServerRelativeUrl == "/" ? "" : _this.siteServerRelativeUrl;
+                    var displayTemplateUrl = result.displayTemplates[i].info.TemplateUrl;
+                    displayTemplateUrl = displayTemplateUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
+                    displayTemplateUrl = CSREditor.Utils.cutOffQueryString(displayTemplateUrl.replace(' ', '%20'));
+                    displayTemplateUrl = displayTemplateUrl.replace(/\.js$/, '.html');
+                    for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
+                        if (_this.otherFiles[o].url == displayTemplateUrl) {
+                            var fm = _this.otherFiles[o];
+                            fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
+                            fm.displayTemplateData = result.displayTemplates[i].info;
+                            _this.otherFiles.remove(fm);
+                            _this.displayTemplates.push(fm);
+                        }
+                    }
+                }
+                CSREditor.ChromeIntegration.waitForResult(CSREditor.SPActions.getCode_checkJSLinkInfoRetrieved(), function (jsLinkInfo, errorInfo) {
+                    _this.loading = false;
+                    if (errorInfo || jsLinkInfo == "error") {
+                        if (errorInfo)
+                            console.log(errorInfo);
+                        alert("There was an error when getting list of files. Please check console for details.");
+                        return;
+                    }
+                    if (jsLinkInfo == "personal") {
+                        _this.personalView = true;
+                        return;
+                    }
+                    for (var wpqId in jsLinkInfo) {
+                        jsLinkInfo[wpqId].forEach(function (url) {
+                            var addedFile = wpDict[wpqId].appendFileToList(url);
+                            if (addedFile != null) {
+                                for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
+                                    if (_this.otherFiles[o].url == addedFile.url)
+                                        _this.otherFiles.remove(_this.otherFiles[o]);
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+        };
+        FilesList.prototype.pathInputKeyDown = function (data, event) {
+            var _this = this;
+            return CSREditor.Utils.safeEnterPath(event, this.filesPathEntered, this.fixupFilesPath.bind(this), function () { _this.changePathDialogShown = false; });
+        };
+        FilesList.prototype.fixupFilesPath = function () {
+            if (this.filesPathEntered[0] != '/')
+                this.filesPathEntered = '/' + this.filesPathEntered;
+            if (this.filesPathEntered[this.filesPathEntered.length - 1] != '/')
+                this.filesPathEntered = this.filesPathEntered + '/';
+            this.changePathDialogShown = false;
+            this.filesPath = this.filesPathEntered;
+            this.pathRelativeTo = this.pathRelativeToEntered;
+        };
+        FilesList.prototype.addOtherFiles = function (fileUrls) {
+            for (var i = 0; i < fileUrls.length; i++) {
+                var fileModel = new CSREditor.FileModel(null, this, fileUrls[i]);
+                this.otherFiles.push(fileModel);
+            }
+        };
+        FilesList.prototype.refreshCSR = function (url, content) {
+            this.currentFile.published = false;
+            if (this.currentFile.paused)
+                return;
+            url = CSREditor.Utils.cutOffQueryString(url.replace(this.siteUrl, '').replace(' ', '%20').toLowerCase());
+            if (url[0] != '/')
+                url = '/' + url;
+            content = content.replace(/\r?\n\s*|\r\s*/g, ' ').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            CSREditor.ChromeIntegration.eval(CSREditor.SPLiveRefresh.getCode_performCSRRefresh(url, content));
+        };
+        FilesList.prototype.saveChangesToFile = function (url, content, saveNow) {
+            var _this = this;
+            url = CSREditor.Utils.toRelative(url, this.domainPart);
+            this.savingQueue[url] = { content: content, cooldown: 3 };
+            if (saveNow)
+                this.savingQueue[url].cooldown = 1;
+            if (!this.savingProcess) {
+                this.savingProcess = setInterval(function () {
+                    for (var fileUrl in _this.savingQueue) {
+                        _this.savingQueue[fileUrl].cooldown--;
+                        if (_this.savingQueue[fileUrl].cooldown <= 0) {
+                            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_saveFileToSharePoint(fileUrl, B64.encode(_this.savingQueue[fileUrl].content)), CSREditor.SPActions.getCode_checkFileSaved(), function (result, errorInfo) {
+                                if (errorInfo || result == "error") {
+                                    alert("Error occured when saving file " + fileUrl + ". Please check console for details.");
+                                    if (errorInfo)
+                                        console.log(errorInfo);
+                                }
+                            });
+                            delete _this.savingQueue[fileUrl];
+                        }
+                    }
+                }, 2000);
+            }
+        };
+        return FilesList;
+    }());
+    CSREditor.FilesList = FilesList;
 })(CSREditor || (CSREditor = {}));
 var CSREditor;
 (function (CSREditor) {
-    var WebPartModel = (function () {
-        function WebPartModel(root, info) {
+    var SearchWebpart = (function () {
+        function SearchWebpart(root, info) {
+            var _this = this;
+            this.root = root;
+            this.title = info.title;
+            this.wpId = info.wpId;
+            this.controlTemplate = this.controlTemplateSaved = info.controlTemplate;
+            this.groupTemplate = this.groupTemplateSaved = info.groupTemplate;
+            this.itemTemplate = this.itemTemplateSaved = info.itemTemplate;
+            this.itemBodyTemplate = this.itemBodyTemplateSaved = info.itemBodyTemplate;
+            this.editing = false;
+            this.saved = true;
+            this.loading = false;
+            this.error = "";
+            ko.track(this);
+            ko.getObservable(this, 'controlTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
+            ko.getObservable(this, 'groupTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
+            ko.getObservable(this, 'itemTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
+            ko.getObservable(this, 'itemBodyTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
+        }
+        SearchWebpart.prototype.saveTemplates = function () {
+            var _this = this;
+            this.loading = true;
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_setTemplates(this.wpId, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate), CSREditor.SPActions.getCode_checkTemplatesSaved(), function (result, errorInfo) {
+                if (errorInfo) {
+                    console.log(errorInfo);
+                    _this.loading = false;
+                    _this.error = errorInfo.value;
+                    return;
+                }
+                _this.controlTemplateSaved = _this.controlTemplate;
+                _this.groupTemplateSaved = _this.groupTemplate;
+                _this.itemTemplateSaved = _this.itemTemplate;
+                _this.itemBodyTemplateSaved = _this.itemBodyTemplate;
+                _this.saved = true;
+                _this.loading = false;
+                _this.editing = false;
+            });
+        };
+        SearchWebpart.prototype.startEditing = function () {
+            this.editing = true;
+        };
+        SearchWebpart.prototype.cancelEditing = function () {
+            this.editing = false;
+            this.error = "";
+        };
+        SearchWebpart.prototype.checkDirty = function (property, newValue) {
+            this.error = "";
+            this.saved =
+                (this.controlTemplateSaved == this.controlTemplate &&
+                    this.groupTemplateSaved == this.groupTemplate &&
+                    this.itemTemplateSaved == this.itemTemplate &&
+                    this.itemBodyTemplateSaved == this.itemBodyTemplate);
+        };
+        return SearchWebpart;
+    }());
+    CSREditor.SearchWebpart = SearchWebpart;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
+    var ListWebpart = (function () {
+        function ListWebpart(root, info) {
             this.files = [];
             this.adding = false;
             this.loading = false;
@@ -1791,7 +1788,7 @@ var CSREditor;
             this.fields = info.fields;
             ko.track(this);
         }
-        WebPartModel.prototype.appendFileToList = function (url, justcreated) {
+        ListWebpart.prototype.appendFileToList = function (url, justcreated) {
             if (justcreated === void 0) { justcreated = false; }
             if (!this.fileFlags[url]) {
                 var file = new CSREditor.FileModel(this, this.root, url);
@@ -1810,16 +1807,16 @@ var CSREditor;
             else
                 return null;
         };
-        WebPartModel.prototype.displayAddNewFileUI = function (data) {
+        ListWebpart.prototype.displayAddNewFileUI = function (data) {
             this.newFileName = '';
             this.adding = true;
         };
-        WebPartModel.prototype.displayChangePathDialog = function (data) {
+        ListWebpart.prototype.displayChangePathDialog = function (data) {
             this.root.filesPathEntered = this.root.filesPath;
             this.root.pathRelativeToEntered = this.root.pathRelativeTo;
             this.root.changePathDialogShown = true;
         };
-        WebPartModel.prototype.displayEditJSLinkUI = function (data) {
+        ListWebpart.prototype.displayEditJSLinkUI = function (data) {
             var _this = this;
             for (var _i = 0, _a = this.files; _i < _a.length; _i++) {
                 var f = _a[_i];
@@ -1844,7 +1841,7 @@ var CSREditor;
                 _this.editJSLinkMode = true;
             });
         };
-        WebPartModel.prototype.saveJSLink = function () {
+        ListWebpart.prototype.saveJSLink = function () {
             var _this = this;
             this.editJSLinkMode = false;
             this.loading = true;
@@ -1859,14 +1856,195 @@ var CSREditor;
                 _this.root.reload();
             });
         };
-        WebPartModel.prototype.cancelJSLinkEdit = function () {
+        ListWebpart.prototype.cancelJSLinkEdit = function () {
             this.editJSLinkMode = false;
         };
-        WebPartModel.prototype.fileNameInputKeyDown = function (data, event) {
+        ListWebpart.prototype.fileNameInputKeyDown = function (data, event) {
             var _this = this;
             return CSREditor.Utils.safeEnterFileName(event, this.newFileName, function () { CSREditor.NewFileHelper.performNewFileCreation(_this.root, _this); }, function () { _this.adding = false; });
         };
-        return WebPartModel;
+        return ListWebpart;
     }());
-    CSREditor.WebPartModel = WebPartModel;
+    CSREditor.ListWebpart = ListWebpart;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
+    var NewFileHelper = (function () {
+        function NewFileHelper() {
+        }
+        NewFileHelper.performNewFileCreation = function (filesList, webpart) {
+            var _this = this;
+            webpart.adding = false;
+            webpart.loading = true;
+            if (webpart.newFileName.indexOf('.js') == -1)
+                webpart.newFileName += '.js';
+            NewFileHelper.createFile({
+                path: filesList.pathRelativeTo + filesList.filesPath.toLowerCase(),
+                fileName: webpart.newFileName,
+                webpartId: webpart.id
+            }, function (alreadyExists) {
+                webpart.loading = false;
+                if (alreadyExists) {
+                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
+                    webpart.appendFileToList(fullUrl, false);
+                }
+                else {
+                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
+                    var file = webpart.appendFileToList(fullUrl, true);
+                    var templateText = _this.generateTemplate(webpart, filesList.filesPath);
+                    filesList.panel.setEditorText(file.url, templateText, true);
+                }
+            });
+        };
+        NewFileHelper.createFile = function (options, callback) {
+            var content = "";
+            if (options.content)
+                content = B64.encode(options.content);
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_createFileInSharePoint(options.path, options.fileName, options.webpartId || "", content), CSREditor.SPActions.getCode_checkFileCreated(), function (result, errorInfo) {
+                if (errorInfo || result == "error") {
+                    alert("There was an error when creating the file. Please check console for details.");
+                    if (errorInfo)
+                        console.log(errorInfo);
+                }
+                else if (result == "created")
+                    callback(false);
+                else if (result == "existing")
+                    callback(true);
+            });
+        };
+        NewFileHelper.generateTemplate = function (webpart, filesPath) {
+            if (!webpart.fields || webpart.fields.length == 0)
+                webpart.fields = ['<field internal name>'];
+            var fieldMarkup = '      //     Fields: {\r\n';
+            for (var f = 0; f < webpart.fields.length; f++) {
+                var field = webpart.fields[f];
+                if (field == "Attachments" || field == "Created" || field == "Modified"
+                    || field == "Author" || field == "Editor" || field == "_UIVersionString")
+                    continue;
+                fieldMarkup +=
+                    '      //         "' + field + '": {\r\n' +
+                        '      //             View: function(ctx) { return ""; },\r\n' +
+                        '      //             EditForm: function(ctx) { return ""; },\r\n' +
+                        '      //             DisplayForm: function(ctx) { return ""; },\r\n' +
+                        '      //             NewForm: function(ctx) { return ""; }\r\n' +
+                        ((f === webpart.fields.length - 1) ?
+                            '      //         }\r\n'
+                            :
+                                '      //         },\r\n');
+            }
+            ;
+            fieldMarkup += '      //     },\r\n';
+            var wptype = webpart.isListForm ? "LFWP" : "XLV";
+            return '// The file has been created, saved into "' + filesPath + '"\r\n' +
+                '// and attached to the ' + wptype + ' via JSLink property.\r\n\r\n' +
+                'SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {\r\n\r\n' +
+                '  function getBaseHtml(ctx) {\r\n' +
+                '    return SPClientTemplates["_defaultTemplates"].Fields.default.all.all[ctx.CurrentFieldSchema.FieldType][ctx.BaseViewID](ctx);\r\n' +
+                '  }\r\n\r\n' +
+                '  function init() {\r\n\r\n' +
+                '    SPClientTemplates.TemplateManager.RegisterTemplateOverrides({\r\n\r\n' +
+                '      // OnPreRender: function(ctx) { },\r\n\r\n' +
+                '      Templates: {\r\n\r\n' +
+                (webpart.isListForm ? '' :
+                    '      //     View: function(ctx) { return ""; },\r\n' +
+                        '      //     Header: function(ctx) { return ""; },\r\n' +
+                        '      //     Body: function(ctx) { return ""; },\r\n' +
+                        '      //     Group: function(ctx) { return ""; },\r\n' +
+                        '      //     Item: function(ctx) { return ""; },\r\n') +
+                fieldMarkup +
+                (webpart.isListForm ? '' :
+                    '      //     Footer: function(ctx) { return ""; }\r\n') +
+                '\r\n' +
+                '      },\r\n\r\n' +
+                '      // OnPostRender: function(ctx) { },\r\n\r\n' +
+                '      ListTemplateType: ' + webpart.listTemplateType + '\r\n\r\n' +
+                '    });\r\n' +
+                '  }\r\n\r\n' +
+                '  RegisterModuleInit(SPClientTemplates.Utility.ReplaceUrlTokens("~siteCollection' + filesPath + webpart.newFileName + '"), init);\r\n' +
+                '  init();\r\n\r\n' +
+                '});\r\n';
+        };
+        return NewFileHelper;
+    }());
+    CSREditor.NewFileHelper = NewFileHelper;
+})(CSREditor || (CSREditor = {}));
+var CSREditor;
+(function (CSREditor) {
+    var FileModel = (function () {
+        function FileModel(wp, root, url) {
+            this.isDisplayTemplate = false;
+            this.url = '';
+            this.shortUrl = '';
+            this.justCreated = false;
+            this.published = false;
+            this.current = false;
+            this.paused = false;
+            this.cloning = false;
+            this.cloningInProgress = false;
+            this.cloneName = '';
+            this.root = root;
+            this.wp = wp;
+            url = CSREditor.Utils.cutOffQueryString(url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase().replace(/ /g, '%20'));
+            if (url.indexOf("_catalogs/masterpage/display%20templates") != -1 && url.endsWith(".js")) {
+                url = url.slice(0, -3) + ".html";
+                this.isDisplayTemplate = true;
+            }
+            this.url = url;
+            this.shortUrl = url.substr(url.lastIndexOf('/') + 1);
+            ko.track(this);
+        }
+        FileModel.prototype.makeFileCurrent = function () {
+            if (this.root.currentFile) {
+                this.root.currentFile.cloning = false;
+                this.root.currentFile.current = false;
+            }
+            this.current = true;
+            this.root.currentFile = this;
+            this.root.currentWebPart = this.wp;
+            this.root.panel.loadUrlToEditor(this.url);
+        };
+        FileModel.prototype.publishFile = function () {
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_publishFileToSharePoint(this.url));
+            this.published = true;
+        };
+        FileModel.prototype.removeFile = function () {
+            if (confirm('Sure to move the file to recycle bin and unbind it from the webpart?')) {
+                var url = CSREditor.Utils.toRelative(this.url, this.root.domainPart);
+                this.root.panel.setEditorText(null, '');
+                CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
+                this.root.currentWebPart.files.remove(this);
+            }
+        };
+        FileModel.prototype.cloneFile = function () {
+            this.cloneName = "";
+            this.cloning = true;
+        };
+        FileModel.prototype.confirmCloning = function () {
+            var _this = this;
+            this.cloning = false;
+            this.cloningInProgress = true;
+            var path = this.url.replace(/\/[^\/]+$/, '');
+            CSREditor.NewFileHelper.createFile({
+                path: path,
+                fileName: this.cloneName,
+                content: this.root.panel.getEditorTextRaw()
+            }, function (alreadyExists) {
+                _this.cloningInProgress = false;
+                if (!alreadyExists) {
+                    var fm = new FileModel(null, _this.root, path + "/" + _this.cloneName);
+                    fm.displayTemplateUniqueId = ""; //todo
+                    fm.displayTemplateData = _this.displayTemplateData;
+                    _this.root.displayTemplates.push(fm);
+                }
+            });
+        };
+        FileModel.prototype.cancelCloning = function () {
+            this.cloning = false;
+        };
+        FileModel.prototype.pauseOrResume = function () {
+            this.paused = !this.paused;
+        };
+        return FileModel;
+    }());
+    CSREditor.FileModel = FileModel;
 })(CSREditor || (CSREditor = {}));

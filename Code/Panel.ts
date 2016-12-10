@@ -19,7 +19,7 @@
             this.editorCM = this.initEditor();
             this.intellisenseHelper = new CSREditor.IntellisenseHelper(this.typeScriptService, this.editorCM);
 
-            this.filesList = new CSREditor.FilesList(this.loadUrlToEditor.bind(this), this.setEditorText.bind(this));
+            this.filesList = new CSREditor.FilesList(this);
             this.loadWindowKeys();
 
             ChromeIntegration.setNavigatedListener((pageUrl) => {
@@ -68,7 +68,7 @@
             return editor;
         }
 
-        private loadUrlToEditor(url: string) {
+        public loadUrlToEditor(url: string) {
             if (url in this.modifiedFilesContent)
                 this.setEditorText(url, this.modifiedFilesContent[url]);
             else {
@@ -101,7 +101,7 @@
             }
         }
 
-        private setEditorText(url: string, text: string, newlyCreated: boolean = false) {
+        public setEditorText(url: string, text: string, newlyCreated: boolean = false) {
             this.filesList.fileError = null;
             this.fileName = url;
             this.editorCM.setOption("mode", url != null && url.endsWith(".js") ? "text/typescript" : "text/html");
@@ -134,6 +134,11 @@
                 }
                 this.intellisenseHelper.setFieldInternalNames(fieldNames);
             });
+        }
+
+        public getEditorTextRaw()
+        {
+            return this.editorCM.getDoc().getValue();
         }
 
         private processChanges(cm: CodeMirror.Doc, changeObj?: CodeMirror.EditorChangeLinkedList) {

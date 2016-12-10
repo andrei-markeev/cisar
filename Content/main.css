@@ -80,10 +80,15 @@
     color: #777;
 }
 
-.files {
+.files, .actions {
     padding: 2px 1px;
     border: 1px solid #eee;
     margin-bottom: 12px;
+}
+
+.actions textarea {
+    padding-bottom: 8px;
+    width: 100%;
 }
 
 .fullscreen .files {
@@ -102,6 +107,7 @@
 .files > div:hover {
     border: 1px solid #e7e6ea;
 }
+
 
 .files > div.current {
     color: #17168a;
@@ -129,6 +135,21 @@
 
 .files > div.current.published a.publish-button {
     color: rgb(137, 213, 64);
+}
+
+.files > div.clone {
+    margin-top: 0;
+    padding-top: 6px;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    margin-top: -2px;
+    cursor: default;
+}
+.files > div.clone:hover {
+    border: 1px solid transparent;
+}
+.files > div.clone > input {
+    padding-bottom: 2px;
 }
 
 .files > div.justcreated {

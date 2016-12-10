@@ -1,6 +1,6 @@
 ﻿module CSREditor {
     export class FileModel {
-        constructor(wp: WebPartModel, root: FilesList, url: string) {
+        constructor(wp: ListWebpart, root: FilesList, url: string) {
             this.root = root;
             this.wp = wp;
 
@@ -16,7 +16,7 @@
         }
 
         private root: FilesList;
-        private wp: WebPartModel;
+        private wp: ListWebpart;
 
         public isDisplayTemplate: boolean = false;
         public displayTemplateUniqueId: string;
@@ -27,14 +27,19 @@
         public published: boolean = false;
         public current: boolean = false;
         public paused: boolean = false;
+        public cloning: boolean = false;
+        public cloningInProgress: boolean = false;
+        public cloneName: string = '';
 
         public makeFileCurrent() {
-            if (this.root.currentFile)
+            if (this.root.currentFile) {
+                this.root.currentFile.cloning = false;
                 this.root.currentFile.current = false;
+            }
             this.current = true;
             this.root.currentFile = this;
             this.root.currentWebPart = this.wp;
-            this.root.loadFileToEditor(this.url);
+            this.root.panel.loadUrlToEditor(this.url);
         }
 
         public publishFile() {
@@ -45,10 +50,36 @@
         public removeFile() {
             if (confirm('Sure to move the file to recycle bin and unbind it from the webpart?')) {
                 var url = Utils.toRelative(this.url, this.root.domainPart);
-                this.root.setEditorText(null, '');
+                this.root.panel.setEditorText(null, '');
                 CSREditor.ChromeIntegration.eval(SPActions.getCode_removeFileFromSharePoint(url, this.wp != null ? this.wp.id : null));
                 this.root.currentWebPart.files.remove(this);
             }
+        }
+
+        public cloneFile() {
+            this.cloneName = "";
+            this.cloning = true;
+        }
+        public confirmCloning() {
+            this.cloning = false;
+            this.cloningInProgress = true;
+            var path = this.url.replace(/\/[^\/]+$/, '');
+            NewFileHelper.createFile({
+                path: path, 
+                fileName: this.cloneName,
+                content: this.root.panel.getEditorTextRaw() 
+            }, (alreadyExists) => {
+                this.cloningInProgress = false;
+                if (!alreadyExists) {
+                    var fm = new FileModel(null, this.root, path + "/" + this.cloneName);
+                    fm.displayTemplateUniqueId = ""; //todo
+                    fm.displayTemplateData = this.displayTemplateData;
+                    this.root.displayTemplates.push(fm);
+                }
+            });
+        }
+        public cancelCloning() {
+            this.cloning = false;
         }
 
         public pauseOrResume() {
