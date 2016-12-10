@@ -1,6 +1,6 @@
 ﻿module CSREditor {
     export class FileModel {
-        constructor(wp: ListWebpart, root: FilesList, url: string) {
+        constructor(wp: ListWebpart | SearchWebpart, root: FilesList, url: string) {
             this.root = root;
             this.wp = wp;
 
@@ -16,7 +16,7 @@
         }
 
         private root: FilesList;
-        private wp: ListWebpart;
+        public wp: ListWebpart | SearchWebpart;
 
         public isDisplayTemplate: boolean = false;
         public displayTemplateUniqueId: string;
@@ -64,17 +64,23 @@
             this.cloning = false;
             this.cloningInProgress = true;
             var path = this.url.replace(/\/[^\/]+$/, '');
+            var ext = this.url.match(/\.[^\/\.]+$/)[0];
+            if (this.cloneName.indexOf(ext) == -1)
+                this.cloneName += ext;
             NewFileHelper.createFile({
                 path: path, 
                 fileName: this.cloneName,
                 content: this.root.panel.getEditorTextRaw() 
             }, (alreadyExists) => {
-                this.cloningInProgress = false;
                 if (!alreadyExists) {
-                    var fm = new FileModel(null, this.root, path + "/" + this.cloneName);
-                    fm.displayTemplateUniqueId = ""; //todo
-                    fm.displayTemplateData = this.displayTemplateData;
-                    this.root.displayTemplates.push(fm);
+                    ChromeIntegration.evalAndWaitForResult(
+                        SPActions.getCode_loadDisplayTemplate(path + "/" + this.cloneName),
+                        SPActions.getCode_checkDisplayTemplateLoaded(),
+                        (result, errorInfo) => {
+                            this.cloningInProgress = false;
+                            if (!errorInfo && result != "error")
+                                this.root.reload();
+                        });
                 }
             });
         }

@@ -111,7 +111,6 @@
             <div class="files" data-bind="visible: !editing">
                 <!-- ko foreach: files -->
                 <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                    <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
                     <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
                     <a data-bind="click: cloneFile, clickBubble: false, visible: current" title="create a copy of this display template with a different name"><i class="fa fa-clone"></i></a>
                     <span data-bind="text: shortUrl"></span>
@@ -128,7 +127,6 @@
         <div class="files" data-bind="visible: !loading && displayTemplates.length > 0">
             <!-- ko foreach: displayTemplates -->
             <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
-                <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
                 <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
                 <a data-bind="click: cloneFile, clickBubble: false, visible: current" title="create a copy of this display template with a different name"><i class="fa fa-clone"></i></a>
                 <span data-bind="text: shortUrl"></span>

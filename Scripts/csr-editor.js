@@ -107,13 +107,14 @@ var CSREditor;
                 this.filesList.saveChangesToFile(url, text, true);
             }
             this.intellisenseHelper.setFieldInternalNames([]);
-            if (!this.filesList.currentWebPart)
+            if (!this.filesList.currentWebPart || this.filesList.currentWebPart instanceof CSREditor.SearchWebpart)
                 return;
-            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(this.filesList.currentWebPart.ctxKey), function (result, errorInfo) {
+            var wp = this.filesList.currentWebPart;
+            CSREditor.ChromeIntegration.eval(CSREditor.SPActions.getCode_retrieveFieldsInfo(wp.ctxKey), function (result, errorInfo) {
                 var fieldNames = [];
                 for (var i in result) {
                     var f = result[i].Name;
-                    if (_this.filesList.currentWebPart.isListForm && (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString"))
+                    if (wp.isListForm && (f == "Attachments" || f == "Created" || f == "Modified" || f == "Author" || f == "Editor" || f == "_UIVersionString"))
                         continue;
                     fieldNames.push(result[i].Name);
                 }
@@ -864,8 +865,8 @@ var CSREditor;
         };
         SPActions.listCsrWebparts = function () {
             var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
-            var jsLinkWebparts = [];
-            var searchResultWebparts = [];
+            var listWebparts = [];
+            var searchWebparts = [];
             var wp_properties = [];
             if (GetUrlKeyValue("PageView") == "Personal") {
                 window["g_Cisar_JSLinkUrls"] = "personal";
@@ -884,7 +885,7 @@ var CSREditor;
                             continue;
                         fields.push(f);
                     }
-                    jsLinkWebparts.push({
+                    listWebparts.push({
                         title: 'LFWP ' + controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
@@ -897,7 +898,7 @@ var CSREditor;
                 else if (window["WPQ" + wpqId + "SchemaData"]) {
                     var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
                     var ctx = window["ctx" + ctxNumber];
-                    jsLinkWebparts.push({
+                    listWebparts.push({
                         title: 'XLV: ' + ctx.ListTitle,
                         wpqId: wpqId,
                         wpId: wpId,
@@ -911,8 +912,8 @@ var CSREditor;
                     var dtElement = document.querySelector("#WebPartWPQ" + wpqId + " > [componentid$='_csr']");
                     var dtControl = Srch.U.getClientComponent(dtElement);
                     if (dtControl && dtControl.get_itemBodyTemplateId)
-                        searchResultWebparts.push({
-                            title: "SearchResults " + (searchResultWebparts.length + 1),
+                        searchWebparts.push({
+                            title: "SearchResults " + (searchWebparts.length + 1),
                             wpqId: wpqId,
                             wpId: wpId,
                             controlTemplate: dtControl.get_renderTemplateId(),
@@ -923,17 +924,17 @@ var CSREditor;
                 }
             }
             delete window["g_Cisar_JSLinkUrls"];
-            if (jsLinkWebparts.length > 0) {
+            if (listWebparts.length > 0) {
                 SP.SOD.executeFunc("sp.js", "SP.ClientContext", function () {
                     var context = SP.ClientContext.get_current();
                     var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                     var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
-                    for (var i = 0; i < jsLinkWebparts.length; i++) {
-                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(jsLinkWebparts[i].wpId));
+                    for (var i = 0; i < listWebparts.length; i++) {
+                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(listWebparts[i].wpId));
                         var webpart = webpartDef.get_webPart();
                         var properties = webpart.get_properties();
                         context.load(properties);
-                        wp_properties.push({ wpqId: jsLinkWebparts[i].wpqId, properties: properties });
+                        wp_properties.push({ wpqId: listWebparts[i].wpqId, properties: properties });
                     }
                     context.executeQueryAsync(function () {
                         var urls = {};
@@ -950,7 +951,7 @@ var CSREditor;
                         window["g_Cisar_JSLinkUrls"] = urls;
                     }, function (s, args) {
                         console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
-                        console.log(jsLinkWebparts);
+                        console.log(listWebparts);
                         window["g_Cisar_JSLinkUrls"] = 'error';
                     });
                 });
@@ -972,28 +973,38 @@ var CSREditor;
                 };
             });
             return {
-                listWebparts: jsLinkWebparts,
-                searchWebparts: searchResultWebparts,
+                listWebparts: listWebparts,
+                searchWebparts: searchWebparts,
                 displayTemplates: displayTemplates
             };
         };
         SPActions.getCode_checkJSLinkInfoRetrieved = function () {
-            return "(" + SPActions.checkJSLinkInfoRetrieved + ")();";
-        };
-        SPActions.checkJSLinkInfoRetrieved = function () {
-            if (window["g_Cisar_JSLinkUrls"]) {
-                var result = window["g_Cisar_JSLinkUrls"];
-                delete window["g_Cisar_JSLinkUrls"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_JSLinkUrls");
         };
         SPActions.getCode_retrieveFieldsInfo = function (ctxKey) {
             return "(" + SPActions.retrieveFieldsInfo + ")('" + ctxKey + "');";
         };
         SPActions.retrieveFieldsInfo = function (ctxKey) {
             return window[ctxKey]["ListSchema"].Field || window[ctxKey]["ListSchema"];
+        };
+        SPActions.getCode_loadDisplayTemplate = function (url) {
+            return "(" + SPActions.loadCreatedDisplayTemplate + ")('" + url + "');";
+        };
+        SPActions.loadCreatedDisplayTemplate = function (url) {
+            var scripts = [];
+            Srch.U.appendScriptsToLoad(scripts, url.replace(/\.html$/, '.js'));
+            if (scripts.length == 0)
+                window["g_Cisar_displayTemplateLoaded"] = "alreadyLoaded";
+            else
+                Srch.U.loadScripts(scripts, function () {
+                    window["g_Cisar_displayTemplateLoaded"] = "success";
+                }, function () {
+                    window["g_Cisar_displayTemplateLoaded"] = "error";
+                    console.log("Cisar: error while loading display template. Please try reloading the page.");
+                }, null);
+        };
+        SPActions.getCode_checkDisplayTemplateLoaded = function () {
+            return SPActions.getCode_waitForGlobal("g_Cisar_displayTemplateLoaded");
         };
         SPActions.getCode_createFileInSharePoint = function (path, fileName, wpId, content64) {
             return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + content64 + "');";
@@ -1039,14 +1050,17 @@ var CSREditor;
                     if (fileExists) {
                         if (wpId) {
                             var script = document.createElement("script");
-                            script.src = fullPath + fileName;
+                            script.src = fullPath + fileName.replace(/\.html$/, ".js");
                             script.type = "text/javascript";
                             document.head.appendChild(script);
                             setupJsLink(properties);
                         }
                         context.executeQueryAsync(function () {
                             window["g_Cisar_fileCreationResult"] = "existing";
-                            console.log('CSREditor: existing file has been successfully linked to the webpart.');
+                            if (wpId)
+                                console.log('CSREditor: existing file has been successfully linked to the webpart.');
+                            else
+                                console.log('CSREditor: file already exists.');
                         }, fatalError);
                     }
                     else {
@@ -1072,16 +1086,7 @@ var CSREditor;
             });
         };
         SPActions.getCode_checkFileCreated = function () {
-            return "(" + SPActions.checkFileCreated + ")();";
-        };
-        SPActions.checkFileCreated = function () {
-            if (window["g_Cisar_fileCreationResult"]) {
-                var result = window["g_Cisar_fileCreationResult"];
-                delete window["g_Cisar_fileCreationResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_fileCreationResult");
         };
         SPActions.getCode_saveFileToSharePoint = function (url, content64) {
             return "(" + SPActions.saveFileToSharePoint + ")('" + url + "', '" + content64 + "');";
@@ -1112,16 +1117,7 @@ var CSREditor;
             });
         };
         SPActions.getCode_checkFileSaved = function () {
-            return "(" + SPActions.checkFileSaved + ")();";
-        };
-        SPActions.checkFileSaved = function () {
-            if (window["g_Cisar_fileSavingResult"]) {
-                var result = window["g_Cisar_fileSavingResult"];
-                delete window["g_Cisar_fileSavingResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_fileSavingResult");
         };
         SPActions.getCode_publishFileToSharePoint = function (url) {
             return "(" + SPActions.publishFileToSharePoint + ")('" + url + "');";
@@ -1175,16 +1171,7 @@ var CSREditor;
             });
         };
         SPActions.getCode_checkJSLinkRetrieved = function () {
-            return "(" + SPActions.checkJSLinkRetrieved + ")();";
-        };
-        SPActions.checkJSLinkRetrieved = function () {
-            if (window["g_Cisar_JSLink"]) {
-                var result = window["g_Cisar_JSLink"];
-                delete window["g_Cisar_JSLink"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_JSLink");
         };
         SPActions.getCode_setJSLink = function (wpId, value) {
             return "(" + SPActions.setJSLink + ")('" + wpId + "','" + value + "');";
@@ -1208,22 +1195,31 @@ var CSREditor;
             });
         };
         SPActions.getCode_checkJSLinkSaved = function () {
-            return "(" + SPActions.checkJSLinkSaved + ")();";
-        };
-        SPActions.checkJSLinkSaved = function () {
-            if (window["g_Cisar_JSLinkSaveResult"]) {
-                var result = window["g_Cisar_JSLinkSaveResult"];
-                delete window["g_Cisar_JSLinkSaveResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_JSLinkSaveResult");
         };
         SPActions.getCode_setTemplates = function (wpId, controlTemplateId, groupTemplateId, itemTemplateId, itemBodyTemplateId) {
             return "(" + SPActions.setTemplates + ")('" + wpId + "','" + controlTemplateId + "','" + groupTemplateId + "','" + itemTemplateId + "','" + itemBodyTemplateId + "');";
         };
         SPActions.setTemplates = function (wpId, controlTemplateId, groupTemplateId, itemTemplateId, itemBodyTemplateId) {
             delete window["g_Cisar_TemplatesSaveResult"];
+            var componentElement = document.querySelector("[webpartid='" + wpId + "'] > [componentid$='_csr']");
+            var searchComponent = Srch.U.getClientComponent(componentElement);
+            searchComponent.set_renderTemplateId(controlTemplateId);
+            searchComponent.set_groupTemplateId(groupTemplateId);
+            searchComponent.set_itemTemplateId(itemTemplateId);
+            searchComponent.set_itemBodyTemplateId(itemBodyTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, controlTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, groupTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, itemTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, itemBodyTemplateId);
+            Srch.U.loadScripts(searchComponent.serverTemplateScriptsToLoad, function () {
+                while (componentElement.hasChildNodes())
+                    componentElement.removeChild(componentElement.childNodes[0]);
+                searchComponent.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(function (r) { return delete r.id; });
+                searchComponent.render();
+            }, function () {
+                console.log("Cisar: cannot update Search Results Webpart, error while loading scripts. Please try reloading the page.");
+            }, null);
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
                 var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
@@ -1245,16 +1241,7 @@ var CSREditor;
             });
         };
         SPActions.getCode_checkTemplatesSaved = function () {
-            return "(" + SPActions.checkTemplatesSaved + ")();";
-        };
-        SPActions.checkTemplatesSaved = function () {
-            if (window["g_Cisar_TemplatesSaveResult"]) {
-                var result = window["g_Cisar_TemplatesSaveResult"];
-                delete window["g_Cisar_TemplatesSaveResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_TemplatesSaveResult");
         };
         SPActions.getCode_removeFileFromSharePoint = function (url, wpId) {
             return "(" + SPActions.removeFileFromSharePoint + ")('" + url + "', '" + wpId + "');";
@@ -1343,12 +1330,15 @@ var CSREditor;
             r.invoke();
         };
         SPActions.getCode_checkFileContentRetrieved = function () {
-            return "(" + SPActions.checkFileContentRetrieved + ")();";
+            return SPActions.getCode_waitForGlobal("g_Cisar_FileContents");
         };
-        SPActions.checkFileContentRetrieved = function () {
-            if (window["g_Cisar_FileContents"]) {
-                var result = window["g_Cisar_FileContents"];
-                delete window["g_Cisar_FileContents"];
+        SPActions.getCode_waitForGlobal = function (globalVar) {
+            return "(" + SPActions.waitForGlobal + ")('" + globalVar + "');";
+        };
+        SPActions.waitForGlobal = function (globalVar) {
+            if (window[globalVar]) {
+                var result = window[globalVar];
+                delete window[globalVar];
                 return result;
             }
             else
@@ -1629,6 +1619,7 @@ var CSREditor;
                                     originalUrl == swp.itemTemplate ||
                                     originalUrl == swp.itemBodyTemplate) {
                                     swp.files.push(fm);
+                                    fm.wp = swp;
                                     addedToSwp = true;
                                 }
                             }
@@ -1732,7 +1723,7 @@ var CSREditor;
             this.error = "";
             this.root = root;
             this.title = info.title;
-            this.wpId = info.wpId;
+            this.id = info.wpId;
             this.controlTemplate = this.controlTemplateSaved = info.controlTemplate;
             this.groupTemplate = this.groupTemplateSaved = info.groupTemplate;
             this.itemTemplate = this.itemTemplateSaved = info.itemTemplate;
@@ -1746,7 +1737,7 @@ var CSREditor;
         SearchWebpart.prototype.saveTemplates = function () {
             var _this = this;
             this.loading = true;
-            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_setTemplates(this.wpId, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate), CSREditor.SPActions.getCode_checkTemplatesSaved(), function (result, errorInfo) {
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_setTemplates(this.id, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate), CSREditor.SPActions.getCode_checkTemplatesSaved(), function (result, errorInfo) {
                 if (errorInfo || result == "error") {
                     errorInfo && console.log(errorInfo);
                     _this.loading = false;
@@ -1760,6 +1751,7 @@ var CSREditor;
                 _this.saved = true;
                 _this.loading = false;
                 _this.editing = false;
+                _this.root.reload();
             });
         };
         SearchWebpart.prototype.startEditing = function () {
@@ -1838,7 +1830,7 @@ var CSREditor;
                     f.current = false;
                     this.root.currentFile = null;
                     this.root.currentWebPart = null;
-                    this.root.setEditorText(null, '');
+                    this.root.panel.setEditorText(null, '');
                     break;
                 }
             }
@@ -1899,7 +1891,7 @@ var CSREditor;
             }, function (alreadyExists) {
                 webpart.loading = false;
                 if (alreadyExists) {
-                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + newFileName).toLowerCase();
+                    var fullUrl = ((filesList.pathRelativeTo == '~site' ? filesList.webUrl : filesList.siteUrl) + filesList.filesPath.replace(' ', '%20') + webpart.newFileName).toLowerCase();
                     webpart.appendFileToList(fullUrl, false);
                 }
                 else {
@@ -2038,17 +2030,20 @@ var CSREditor;
             this.cloning = false;
             this.cloningInProgress = true;
             var path = this.url.replace(/\/[^\/]+$/, '');
+            var ext = this.url.match(/\.[^\/\.]+$/)[0];
+            if (this.cloneName.indexOf(ext) == -1)
+                this.cloneName += ext;
             CSREditor.NewFileHelper.createFile({
                 path: path,
                 fileName: this.cloneName,
                 content: this.root.panel.getEditorTextRaw()
             }, function (alreadyExists) {
-                _this.cloningInProgress = false;
                 if (!alreadyExists) {
-                    var fm = new FileModel(null, _this.root, path + "/" + _this.cloneName);
-                    fm.displayTemplateUniqueId = ""; //todo
-                    fm.displayTemplateData = _this.displayTemplateData;
-                    _this.root.displayTemplates.push(fm);
+                    CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_loadDisplayTemplate(path + "/" + _this.cloneName), CSREditor.SPActions.getCode_checkDisplayTemplateLoaded(), function (result, errorInfo) {
+                        _this.cloningInProgress = false;
+                        if (!errorInfo && result != "error")
+                            _this.root.reload();
+                    });
                 }
             });
         };

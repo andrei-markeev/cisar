@@ -68,7 +68,7 @@
                     f.current = false;
                     this.root.currentFile = null;
                     this.root.currentWebPart = null;
-                    this.root.setEditorText(null, '');
+                    this.root.panel.setEditorText(null, '');
                     break;
                 }
             this.loading = true;

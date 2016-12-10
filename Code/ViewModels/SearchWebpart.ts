@@ -5,7 +5,7 @@ module CSREditor
         constructor(root: FilesList, info: ISearchWebpartFromSP) {
             this.root = root;
             this.title = info.title;
-            this.wpId = info.wpId;
+            this.id = info.wpId;
             this.controlTemplate = this.controlTemplateSaved = info.controlTemplate;
             this.groupTemplate = this.groupTemplateSaved = info.groupTemplate;
             this.itemTemplate = this.itemTemplateSaved = info.itemTemplate;
@@ -20,7 +20,7 @@ module CSREditor
         }
 
         private root: FilesList;
-        private wpId: string;
+        public id: string;
         public title: string;
 
         public controlTemplate: string;
@@ -45,7 +45,7 @@ module CSREditor
             this.loading = true;
             
             ChromeIntegration.evalAndWaitForResult(
-                SPActions.getCode_setTemplates(this.wpId, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate),
+                SPActions.getCode_setTemplates(this.id, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate),
                 SPActions.getCode_checkTemplatesSaved(),
                 (result, errorInfo) => {
                     if (errorInfo || result == "error") {
@@ -62,6 +62,8 @@ module CSREditor
                     this.saved = true;
                     this.loading = false;
                     this.editing = false;
+
+                    this.root.reload();
 
                 });
         }

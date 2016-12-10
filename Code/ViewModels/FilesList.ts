@@ -7,7 +7,7 @@ module CSREditor {
         public changePathDialogShown: boolean = false;
 
         public loading: boolean;
-        public currentWebPart: ListWebpart;
+        public currentWebPart: ListWebpart | SearchWebpart;
         public currentFile: FileModel;
         public listWebparts: ListWebpart[];
         public searchWebparts: SearchWebpart[];
@@ -105,7 +105,7 @@ module CSREditor {
                     this.loading = false;
                     return;
                 }
-                var wpDict: { [id: number]: ListWebpart } = {};
+                var wpDict: { [id: string]: ListWebpart } = {};
                 for (var i = 0; i < result.listWebparts.length; i++) {
                     var wp = new ListWebpart(this, result.listWebparts[i]);
                     wpDict[wp.wpq] = wp;
@@ -140,6 +140,7 @@ module CSREditor {
                                     originalUrl == swp.itemBodyTemplate)
                                 {
                                     swp.files.push(fm);
+                                    fm.wp = swp; 
                                     addedToSwp = true;
                                 }
                             }

@@ -11,8 +11,8 @@ module CSREditor {
         private static listCsrWebparts() {
             var controlModeTitle = { '1': 'DisplayForm', '2': 'EditForm', '3': 'NewForm' };
 
-            var jsLinkWebparts = [];
-            var searchResultWebparts = [];
+            var listWebparts = [];
+            var searchWebparts = [];
             var wp_properties = [];
 
             if (GetUrlKeyValue("PageView") == "Personal") {
@@ -38,7 +38,7 @@ module CSREditor {
                         fields.push(f);
                     }
 
-                    jsLinkWebparts.push({
+                    listWebparts.push({
                         title: 'LFWP ' + controlModeTitle[ctx.FormControlMode] + ': ' + (ctx.ItemAttributes.Url || ctx.NewItemRootFolder),
                         wpqId: wpqId,
                         wpId: wpId,
@@ -54,7 +54,7 @@ module CSREditor {
                     var ctxNumber = window["g_ViewIdToViewCounterMap"][window["WPQ" + wpqId + "SchemaData"].View];
                     var ctx = window["ctx" + ctxNumber];
 
-                    jsLinkWebparts.push({
+                    listWebparts.push({
                         title: 'XLV: ' + ctx.ListTitle,
                         wpqId: wpqId,
                         wpId: wpId,
@@ -68,8 +68,8 @@ module CSREditor {
                     var dtElement = document.querySelector("#WebPartWPQ" + wpqId + " > [componentid$='_csr']");
                     var dtControl = Srch.U.getClientComponent(dtElement);
                     if (dtControl && (<Srch.Result>dtControl).get_itemBodyTemplateId)
-                        searchResultWebparts.push({
-                            title: "SearchResults " + (searchResultWebparts.length+1),
+                        searchWebparts.push({
+                            title: "SearchResults " + (searchWebparts.length+1),
                             wpqId: wpqId,
                             wpId: wpId,
                             controlTemplate: (<Srch.Result>dtControl).get_renderTemplateId(),
@@ -83,7 +83,7 @@ module CSREditor {
 
             delete window["g_Cisar_JSLinkUrls"];
 
-            if (jsLinkWebparts.length > 0) {
+            if (listWebparts.length > 0) {
 
                 SP.SOD.executeFunc("sp.js", "SP.ClientContext", function() {
 
@@ -91,12 +91,12 @@ module CSREditor {
                     var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
                     var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
 
-                    for (var i=0; i<jsLinkWebparts.length; i++) {
-                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(jsLinkWebparts[i].wpId));
+                    for (var i=0; i<listWebparts.length; i++) {
+                        var webpartDef = wpm.get_webParts().getById(new SP.Guid(listWebparts[i].wpId));
                         var webpart = webpartDef.get_webPart();
                         var properties = webpart.get_properties();
                         context.load(properties);
-                        wp_properties.push({ wpqId: jsLinkWebparts[i].wpqId, properties: properties });
+                        wp_properties.push({ wpqId: listWebparts[i].wpqId, properties: properties });
                     }
                     
                     context.executeQueryAsync(
@@ -116,7 +116,7 @@ module CSREditor {
                         },
                         function (s, args) {
                             console.log('Error when retrieving properties for the CSR webparts on the page: ' + args.get_message());
-                            console.log(jsLinkWebparts);
+                            console.log(listWebparts);
                             window["g_Cisar_JSLinkUrls"] = 'error';
                         });
                 });
@@ -135,24 +135,14 @@ module CSREditor {
             }});
 
             return {
-                listWebparts: jsLinkWebparts,
-                searchWebparts: searchResultWebparts,
+                listWebparts: listWebparts,
+                searchWebparts: searchWebparts,
                 displayTemplates: displayTemplates
             };
         }
 
-
         public static getCode_checkJSLinkInfoRetrieved() {
-            return "(" + SPActions.checkJSLinkInfoRetrieved + ")();";
-        }
-        private static checkJSLinkInfoRetrieved() {
-            if (window["g_Cisar_JSLinkUrls"]) {
-                var result = window["g_Cisar_JSLinkUrls"];
-                delete window["g_Cisar_JSLinkUrls"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_JSLinkUrls");
         }
 
         public static getCode_retrieveFieldsInfo(ctxKey: string) {
@@ -163,6 +153,25 @@ module CSREditor {
             return window[ctxKey]["ListSchema"].Field || window[ctxKey]["ListSchema"];
         }
 
+        public static getCode_loadDisplayTemplate(url: string) {
+            return "(" + SPActions.loadCreatedDisplayTemplate + ")('" + url + "');";
+        }
+        private static loadCreatedDisplayTemplate(url: string) {
+            var scripts = [];
+            Srch.U.appendScriptsToLoad(scripts, url.replace(/\.html$/,'.js'));
+            if (scripts.length == 0)
+                window["g_Cisar_displayTemplateLoaded"] = "alreadyLoaded";
+            else
+                Srch.U.loadScripts(scripts, function() {
+                    window["g_Cisar_displayTemplateLoaded"] = "success";
+                }, function() { 
+                    window["g_Cisar_displayTemplateLoaded"] = "error";
+                    console.log("Cisar: error while loading display template. Please try reloading the page.");
+                }, null);
+        }
+        public static getCode_checkDisplayTemplateLoaded() {
+            return SPActions.getCode_waitForGlobal("g_Cisar_displayTemplateLoaded");
+        }
 
         public static getCode_createFileInSharePoint(path: string, fileName: string, wpId: string, content64: string) {
             return "(" + SPActions.createFileInSharePoint + ")('" + path + "', '" + fileName + "', '" + wpId + "', '" + content64 + "');";
@@ -217,7 +226,7 @@ module CSREditor {
 
                         if (wpId) {
                             var script = document.createElement("script");
-                            script.src = fullPath + fileName;
+                            script.src = fullPath + fileName.replace(/\.html$/,".js");
                             script.type = "text/javascript";
                             document.head.appendChild(script);
 
@@ -226,7 +235,10 @@ module CSREditor {
 
                         context.executeQueryAsync(function () {
                             window["g_Cisar_fileCreationResult"] = "existing";
-                            console.log('CSREditor: existing file has been successfully linked to the webpart.');
+                            if (wpId)
+                                console.log('CSREditor: existing file has been successfully linked to the webpart.');
+                            else
+                                console.log('CSREditor: file already exists.');
                         },
                         fatalError);
 
@@ -260,16 +272,7 @@ module CSREditor {
         }
 
         public static getCode_checkFileCreated() {
-            return "(" + SPActions.checkFileCreated + ")();";
-        }
-        private static checkFileCreated() {
-            if (window["g_Cisar_fileCreationResult"]) {
-                var result = window["g_Cisar_fileCreationResult"];
-                delete window["g_Cisar_fileCreationResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_fileCreationResult");
         }
 
         public static getCode_saveFileToSharePoint(url: string, content64: string) {
@@ -309,16 +312,7 @@ module CSREditor {
         }
 
         public static getCode_checkFileSaved() {
-            return "(" + SPActions.checkFileSaved + ")();";
-        }
-        private static checkFileSaved() {
-            if (window["g_Cisar_fileSavingResult"]) {
-                var result = window["g_Cisar_fileSavingResult"];
-                delete window["g_Cisar_fileSavingResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_fileSavingResult");
         }
 
         public static getCode_publishFileToSharePoint(url: string) {
@@ -384,16 +378,7 @@ module CSREditor {
             });
         }
         public static getCode_checkJSLinkRetrieved() {
-            return "(" + SPActions.checkJSLinkRetrieved + ")();";
-        }
-        private static checkJSLinkRetrieved() {
-            if (window["g_Cisar_JSLink"]) {
-                var result = window["g_Cisar_JSLink"];
-                delete window["g_Cisar_JSLink"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_JSLink");
         }
 
 
@@ -421,16 +406,7 @@ module CSREditor {
             });
         }
         public static getCode_checkJSLinkSaved() {
-            return "(" + SPActions.checkJSLinkSaved + ")();";
-        }
-        private static checkJSLinkSaved() {
-            if (window["g_Cisar_JSLinkSaveResult"]) {
-                var result = window["g_Cisar_JSLinkSaveResult"];
-                delete window["g_Cisar_JSLinkSaveResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_JSLinkSaveResult");
         }
 
 
@@ -439,6 +415,24 @@ module CSREditor {
         }
         private static setTemplates(wpId, controlTemplateId, groupTemplateId, itemTemplateId, itemBodyTemplateId) {
             delete window["g_Cisar_TemplatesSaveResult"];
+            var componentElement = document.querySelector("[webpartid='" + wpId +"'] > [componentid$='_csr']");
+            var searchComponent = <Srch.Result>Srch.U.getClientComponent(componentElement);
+            searchComponent.set_renderTemplateId(controlTemplateId);
+            searchComponent.set_groupTemplateId(groupTemplateId);
+            searchComponent.set_itemTemplateId(itemTemplateId);
+            searchComponent.set_itemBodyTemplateId(itemBodyTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, controlTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, groupTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, itemTemplateId);
+            Srch.U.appendScriptsToLoad(searchComponent.serverTemplateScriptsToLoad, itemBodyTemplateId);
+            Srch.U.loadScripts(searchComponent.serverTemplateScriptsToLoad, function() {
+                while (componentElement.hasChildNodes())
+                    componentElement.removeChild(componentElement.childNodes[0]);
+                searchComponent.get_currentResultTableCollection().ResultTables[0].ResultRows.forEach(r => delete r.id);
+                searchComponent.render();
+            }, function() { 
+                console.log("Cisar: cannot update Search Results Webpart, error while loading scripts. Please try reloading the page.");
+            }, null);
             SP.SOD.executeFunc('sp.js', 'SP.ClientContext', function () {
                 var context = SP.ClientContext.get_current();
                 var page = context.get_web().getFileByServerRelativeUrl(_spPageContextInfo.serverRequestPath);
@@ -462,16 +456,7 @@ module CSREditor {
             });
         }
         public static getCode_checkTemplatesSaved() {
-            return "(" + SPActions.checkTemplatesSaved + ")();";
-        }
-        private static checkTemplatesSaved() {
-            if (window["g_Cisar_TemplatesSaveResult"]) {
-                var result = window["g_Cisar_TemplatesSaveResult"];
-                delete window["g_Cisar_TemplatesSaveResult"];
-                return result;
-            }
-            else
-                return "wait";
+            return SPActions.getCode_waitForGlobal("g_Cisar_TemplatesSaveResult");
         }
 
         public static getCode_removeFileFromSharePoint(url: string, wpId: string) {
@@ -576,14 +561,17 @@ module CSREditor {
             r.invoke();
         }
 
-
         public static getCode_checkFileContentRetrieved() {
-            return "(" + SPActions.checkFileContentRetrieved + ")();";
+            return SPActions.getCode_waitForGlobal("g_Cisar_FileContents");
         }
-        private static checkFileContentRetrieved() {
-            if (window["g_Cisar_FileContents"]) {
-                var result = window["g_Cisar_FileContents"];
-                delete window["g_Cisar_FileContents"];
+
+        private static getCode_waitForGlobal(globalVar) {
+            return "(" + SPActions.waitForGlobal + ")('" + globalVar + "');";
+        }
+        private static waitForGlobal(globalVar: string) {
+            if (window[globalVar]) {
+                var result = window[globalVar];
+                delete window[globalVar];
                 return result;
             }
             else
