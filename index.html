@@ -85,36 +85,46 @@
             </div>
         <!-- /ko -->
         <!-- ko foreach: searchWebparts -->
-            <div class="header"><span data-bind="visible: !saved">*</span><span data-bind="text: title"></span></div>
-            <div class="actions">
-                <div data-bind="visible: editing">
-                    <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
-                    <div class="hint" data-bind="visible: error">
-                        Error saving templates: <span data-bind="text: error"></span>
-                    </div>
-                    <div data-bind="visible: !loading">
-                        <label for="controlTemplateInput">Control template:</label>
-                        <textarea id="controlTemplateInput" data-bind="value: controlTemplate" rows="4"></textarea>
-
-                        <label for="groupTemplateInput">Group template:</label>
-                        <textarea id="groupTemplateInput" data-bind="value: groupTemplate" rows="4"></textarea>
-
-                        <label for="itemTemplateInput">Item template:</label>
-                        <textarea id="itemTemplateInput" data-bind="value: itemTemplate" rows="4"></textarea>
-
-                        <label for="itemBodyTemplateInput">Item body template:</label>
-                        <textarea id="itemBodyTemplateInput" data-bind="value: itemBodyTemplate" rows="4"></textarea>
-                        
-                        <button data-bind="click: saveTemplates"><i class="fa fa-floppy-o"></i> Save</button>
-                        <button data-bind="click: cancelEditing">Cancel</button>
-                    </div>
+            <div class="header"><span data-bind="visible: !saved">*</span><span data-bind="text: title"></span> <a data-bind="click: startEditing, visible: loading == false && editing == false" title="Edit display template settings"><i class="fa fa-pencil"></i></a></div>
+            <div class="actions" data-bind="visible: editing">
+                <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
+                <div class="hint" data-bind="visible: error">
+                    Error saving templates: <span data-bind="text: error"></span>
                 </div>
-                <div data-bind="visible: !editing">
-                    <button data-bind="click: startEditing"><i class="fa fa-pencil"></i> Edit templates</button>
+                <div data-bind="visible: !loading">
+                    <label for="controlTemplateInput">Control template:</label>
+                    <textarea id="controlTemplateInput" data-bind="value: controlTemplate" rows="4"></textarea>
+
+                    <label for="groupTemplateInput">Group template:</label>
+                    <textarea id="groupTemplateInput" data-bind="value: groupTemplate" rows="4"></textarea>
+
+                    <label for="itemTemplateInput">Item template:</label>
+                    <textarea id="itemTemplateInput" data-bind="value: itemTemplate" rows="4"></textarea>
+
+                    <label for="itemBodyTemplateInput">Item body template:</label>
+                    <textarea id="itemBodyTemplateInput" data-bind="value: itemBodyTemplate" rows="4"></textarea>
+                    
+                    <button data-bind="click: saveTemplates"><i class="fa fa-floppy-o"></i> Save</button>
+                    <button data-bind="click: cancelEditing">Cancel</button>
                 </div>
             </div>
+            <div class="files" data-bind="visible: !editing">
+                <!-- ko foreach: files -->
+                <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
+                    <a data-bind="click: removeFile, clickBubble: false, visible: current" title="move file to recycle bin"><i class="fa fa-trash-o"></i></a>
+                    <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
+                    <a data-bind="click: cloneFile, clickBubble: false, visible: current" title="create a copy of this display template with a different name"><i class="fa fa-clone"></i></a>
+                    <span data-bind="text: shortUrl"></span>
+                </div>
+                <div data-bind="visible: cloning" class="clone">
+                    <input data-bind="value: cloneName" />
+                    <button data-bind="click: confirmCloning"><i class="fa fa-clone"></i> Clone</button>
+                    <button data-bind="click: cancelCloning">Cancel</button>
+                </div>
+                <!-- /ko -->
+            </div>
         <!-- /ko -->
-        <div class="header" data-bind="visible: !loading && displayTemplates.length > 0">Display templates</div>
+        <div class="header" data-bind="visible: !loading && displayTemplates.length > 0">Other display templates</div>
         <div class="files" data-bind="visible: !loading && displayTemplates.length > 0">
             <!-- ko foreach: displayTemplates -->
             <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">

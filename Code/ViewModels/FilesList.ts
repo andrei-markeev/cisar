@@ -119,8 +119,8 @@ module CSREditor {
 
                 for (var i = 0; i < result.displayTemplates.length; i++) {
                     var siteCollUrl = this.siteServerRelativeUrl == "/" ? "" : this.siteServerRelativeUrl;
-                    var displayTemplateUrl = result.displayTemplates[i].info.TemplateUrl;
-                    displayTemplateUrl = displayTemplateUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
+                    var originalUrl = result.displayTemplates[i].info.TemplateUrl;
+                    var displayTemplateUrl = originalUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
                     displayTemplateUrl = Utils.cutOffQueryString(displayTemplateUrl.replace(' ','%20'));
                     displayTemplateUrl = displayTemplateUrl.replace(/\.js$/,'.html');
                     for (var o = this.otherFiles.length - 1; o >= 0; o--) {
@@ -130,7 +130,21 @@ module CSREditor {
                             fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
                             fm.displayTemplateData = result.displayTemplates[i].info;
                             this.otherFiles.remove(fm);
-                            this.displayTemplates.push(fm);
+                            var addedToSwp = false;
+                            for (var j=0; j < this.searchWebparts.length; j++)
+                            {
+                                var swp = this.searchWebparts[j];
+                                if (originalUrl == swp.controlTemplate ||
+                                    originalUrl == swp.groupTemplate ||
+                                    originalUrl == swp.itemTemplate ||
+                                    originalUrl == swp.itemBodyTemplate)
+                                {
+                                    swp.files.push(fm);
+                                    addedToSwp = true;
+                                }
+                            }
+                            if (!addedToSwp)
+                                this.displayTemplates.push(fm);
                         }
                     }
                 }

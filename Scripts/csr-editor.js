@@ -1230,6 +1230,7 @@ var CSREditor;
                 var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
                 var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
                 var webpart = webpartDef.get_webPart();
+                webpart.get_properties().set_item("BypassResultTypes", true);
                 webpart.get_properties().set_item("RenderTemplateId", controlTemplateId);
                 webpart.get_properties().set_item("GroupTemplateId", groupTemplateId);
                 webpart.get_properties().set_item("ItemTemplateId", itemTemplateId);
@@ -1239,7 +1240,7 @@ var CSREditor;
                     window["g_Cisar_TemplatesSaveResult"] = 'success';
                 }, function (sender, args) {
                     window["g_Cisar_TemplatesSaveResult"] = 'error';
-                    console.log('Error when saving Templates: ' + args.get_message());
+                    console.log('Error when saving template bindings: ' + args.get_message());
                 });
             });
         };
@@ -1610,8 +1611,8 @@ var CSREditor;
                 }
                 for (var i = 0; i < result.displayTemplates.length; i++) {
                     var siteCollUrl = _this.siteServerRelativeUrl == "/" ? "" : _this.siteServerRelativeUrl;
-                    var displayTemplateUrl = result.displayTemplates[i].info.TemplateUrl;
-                    displayTemplateUrl = displayTemplateUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
+                    var originalUrl = result.displayTemplates[i].info.TemplateUrl;
+                    var displayTemplateUrl = originalUrl.toLowerCase().replace("~sitecollection/", siteCollUrl + "/");
                     displayTemplateUrl = CSREditor.Utils.cutOffQueryString(displayTemplateUrl.replace(' ', '%20'));
                     displayTemplateUrl = displayTemplateUrl.replace(/\.js$/, '.html');
                     for (var o = _this.otherFiles.length - 1; o >= 0; o--) {
@@ -1620,7 +1621,19 @@ var CSREditor;
                             fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
                             fm.displayTemplateData = result.displayTemplates[i].info;
                             _this.otherFiles.remove(fm);
-                            _this.displayTemplates.push(fm);
+                            var addedToSwp = false;
+                            for (var j = 0; j < _this.searchWebparts.length; j++) {
+                                var swp = _this.searchWebparts[j];
+                                if (originalUrl == swp.controlTemplate ||
+                                    originalUrl == swp.groupTemplate ||
+                                    originalUrl == swp.itemTemplate ||
+                                    originalUrl == swp.itemBodyTemplate) {
+                                    swp.files.push(fm);
+                                    addedToSwp = true;
+                                }
+                            }
+                            if (!addedToSwp)
+                                _this.displayTemplates.push(fm);
                         }
                     }
                 }
@@ -1712,6 +1725,11 @@ var CSREditor;
     var SearchWebpart = (function () {
         function SearchWebpart(root, info) {
             var _this = this;
+            this.files = [];
+            this.editing = false;
+            this.saved = true;
+            this.loading = false;
+            this.error = "";
             this.root = root;
             this.title = info.title;
             this.wpId = info.wpId;
@@ -1719,10 +1737,6 @@ var CSREditor;
             this.groupTemplate = this.groupTemplateSaved = info.groupTemplate;
             this.itemTemplate = this.itemTemplateSaved = info.itemTemplate;
             this.itemBodyTemplate = this.itemBodyTemplateSaved = info.itemBodyTemplate;
-            this.editing = false;
-            this.saved = true;
-            this.loading = false;
-            this.error = "";
             ko.track(this);
             ko.getObservable(this, 'controlTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
             ko.getObservable(this, 'groupTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
@@ -1733,10 +1747,10 @@ var CSREditor;
             var _this = this;
             this.loading = true;
             CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_setTemplates(this.wpId, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate), CSREditor.SPActions.getCode_checkTemplatesSaved(), function (result, errorInfo) {
-                if (errorInfo) {
-                    console.log(errorInfo);
+                if (errorInfo || result == "error") {
+                    errorInfo && console.log(errorInfo);
                     _this.loading = false;
-                    _this.error = errorInfo.value;
+                    _this.error = (errorInfo && errorInfo.value) || "check console for details";
                     return;
                 }
                 _this.controlTemplateSaved = _this.controlTemplate;

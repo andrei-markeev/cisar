@@ -10,10 +10,6 @@ module CSREditor
             this.groupTemplate = this.groupTemplateSaved = info.groupTemplate;
             this.itemTemplate = this.itemTemplateSaved = info.itemTemplate;
             this.itemBodyTemplate = this.itemBodyTemplateSaved = info.itemBodyTemplate;
-            this.editing = false;
-            this.saved = true;
-            this.loading = false;
-            this.error = "";
 
             ko.track(this);
 
@@ -32,15 +28,17 @@ module CSREditor
         public itemTemplate: string;
         public itemBodyTemplate: string;
 
-        public controlTemplateSaved: string;
-        public groupTemplateSaved: string;
-        public itemTemplateSaved: string;
-        public itemBodyTemplateSaved: string;
+        public files: FileModel[] = [];
 
-        public editing: boolean;
-        public saved: boolean;
-        public loading: boolean;
-        public error: string;
+        private controlTemplateSaved: string;
+        private groupTemplateSaved: string;
+        private itemTemplateSaved: string;
+        private itemBodyTemplateSaved: string;
+
+        public editing: boolean = false;
+        public saved: boolean = true;
+        public loading: boolean = false;
+        public error: string = "";
 
         public saveTemplates()
         {
@@ -50,10 +48,10 @@ module CSREditor
                 SPActions.getCode_setTemplates(this.wpId, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate),
                 SPActions.getCode_checkTemplatesSaved(),
                 (result, errorInfo) => {
-                    if (errorInfo) {
-                        console.log(errorInfo);
+                    if (errorInfo || result == "error") {
+                        errorInfo && console.log(errorInfo);
                         this.loading = false;
-                        this.error = errorInfo.value;
+                        this.error = (errorInfo && errorInfo.value) || "check console for details";
                         return;
                     }
 
