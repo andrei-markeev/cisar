@@ -445,6 +445,7 @@ module CSREditor {
                 var wpm = page.getLimitedWebPartManager(SP.WebParts.PersonalizationScope.shared);
                 var webpartDef = wpm.get_webParts().getById(new SP.Guid(wpId));
                 var webpart = webpartDef.get_webPart();
+                webpart.get_properties().set_item("BypassResultTypes", true);
                 webpart.get_properties().set_item("RenderTemplateId", controlTemplateId);
                 webpart.get_properties().set_item("GroupTemplateId", groupTemplateId);
                 webpart.get_properties().set_item("ItemTemplateId", itemTemplateId);
@@ -456,7 +457,7 @@ module CSREditor {
                 },
                 function (sender, args) {
                     window["g_Cisar_TemplatesSaveResult"] = 'error';
-                    console.log('Error when saving Templates: ' + args.get_message());
+                    console.log('Error when saving template bindings: ' + args.get_message());
                 });
             });
         }
