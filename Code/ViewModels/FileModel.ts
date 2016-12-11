@@ -19,8 +19,9 @@
         public wp: ListWebpart | SearchWebpart;
 
         public isDisplayTemplate: boolean = false;
-        public displayTemplateUniqueId: string;
+        public displayTemplateUniqueId: string = '';
         public displayTemplateData: any;
+        public displayTemplateUrl: string = '';
         public url: string = '';
         public shortUrl: string = '';
         public justCreated: boolean = false;

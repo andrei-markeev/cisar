@@ -78,6 +78,7 @@
 }
 .header > a {
     color: #777;
+    cursor: pointer;
 }
 
 .files, .actions {
@@ -86,8 +87,8 @@
     margin-bottom: 12px;
 }
 
-.actions textarea {
-    padding-bottom: 8px;
+.actions textarea, .actions input, .actions select {
+    margin-bottom: 7px;
     width: 100%;
 }
 
@@ -149,7 +150,7 @@
     border: 1px solid transparent;
 }
 .files > div.clone > input {
-    padding-bottom: 2px;
+    margin-bottom: 3px;
 }
 
 .files > div.justcreated {
@@ -248,12 +249,12 @@
     right: 0;
     z-index: 101;
 }
-.change-path-dialog {
+.dialog {
     position: fixed;
     background-color: #fff;
     border: 1px solid #ddd;
     padding: 10px 15px;
-    width: 300px;
+    min-width: 300px;
     top: 70px;
     left: 70px;
     z-index: 102;

@@ -1610,6 +1610,7 @@ var CSREditor;
                             var fm = _this.otherFiles[o];
                             fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
                             fm.displayTemplateData = result.displayTemplates[i].info;
+                            fm.displayTemplateUrl = originalUrl;
                             _this.otherFiles.remove(fm);
                             var addedToSwp = false;
                             for (var j = 0; j < _this.searchWebparts.length; j++) {
@@ -1718,6 +1719,7 @@ var CSREditor;
             var _this = this;
             this.files = [];
             this.editing = false;
+            this.binding = false;
             this.saved = true;
             this.loading = false;
             this.error = "";
@@ -1734,10 +1736,24 @@ var CSREditor;
             ko.getObservable(this, 'itemTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
             ko.getObservable(this, 'itemBodyTemplate').subscribe(function (newValue) { return setTimeout(_this.checkDirty.bind(_this), 0); });
         }
+        Object.defineProperty(SearchWebpart.prototype, "controlDisplayTemplates", {
+            get: function () {
+                return this.files.concat(this.root.displayTemplates).filter(function (f) { return f.displayTemplateData.TemplateType == "Control"; });
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(SearchWebpart.prototype, "itemDisplayTemplates", {
+            get: function () {
+                return this.files.concat(this.root.displayTemplates).filter(function (f) { return f.displayTemplateData.TemplateType == "Item"; });
+            },
+            enumerable: true,
+            configurable: true
+        });
         SearchWebpart.prototype.saveTemplates = function () {
             var _this = this;
             this.loading = true;
-            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_setTemplates(this.id, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate), CSREditor.SPActions.getCode_checkTemplatesSaved(), function (result, errorInfo) {
+            CSREditor.ChromeIntegration.evalAndWaitForResult(CSREditor.SPActions.getCode_setTemplates(this.id, this.controlTemplate || "", this.groupTemplate || "", this.itemTemplate || "", this.itemBodyTemplate || ""), CSREditor.SPActions.getCode_checkTemplatesSaved(), function (result, errorInfo) {
                 if (errorInfo || result == "error") {
                     errorInfo && console.log(errorInfo);
                     _this.loading = false;
@@ -1756,10 +1772,15 @@ var CSREditor;
         };
         SearchWebpart.prototype.startEditing = function () {
             this.editing = true;
+            this.binding = false;
         };
         SearchWebpart.prototype.cancelEditing = function () {
+            this.binding = false;
             this.editing = false;
             this.error = "";
+        };
+        SearchWebpart.prototype.startBinding = function () {
+            this.binding = true;
         };
         SearchWebpart.prototype.checkDirty = function (property, newValue) {
             this.error = "";
@@ -1979,6 +2000,8 @@ var CSREditor;
     var FileModel = (function () {
         function FileModel(wp, root, url) {
             this.isDisplayTemplate = false;
+            this.displayTemplateUniqueId = '';
+            this.displayTemplateUrl = '';
             this.url = '';
             this.shortUrl = '';
             this.justCreated = false;

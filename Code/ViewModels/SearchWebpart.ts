@@ -29,6 +29,12 @@ module CSREditor
         public itemBodyTemplate: string;
 
         public files: FileModel[] = [];
+        public get controlDisplayTemplates(): FileModel[] {
+            return this.files.concat(this.root.displayTemplates).filter(f => f.displayTemplateData.TemplateType == "Control");
+        }
+        public get itemDisplayTemplates(): FileModel[] {
+            return this.files.concat(this.root.displayTemplates).filter(f => f.displayTemplateData.TemplateType == "Item");
+        }
 
         private controlTemplateSaved: string;
         private groupTemplateSaved: string;
@@ -36,6 +42,7 @@ module CSREditor
         private itemBodyTemplateSaved: string;
 
         public editing: boolean = false;
+        public binding: boolean = false;
         public saved: boolean = true;
         public loading: boolean = false;
         public error: string = "";
@@ -45,7 +52,7 @@ module CSREditor
             this.loading = true;
             
             ChromeIntegration.evalAndWaitForResult(
-                SPActions.getCode_setTemplates(this.id, this.controlTemplate, this.groupTemplate, this.itemTemplate, this.itemBodyTemplate),
+                SPActions.getCode_setTemplates(this.id, this.controlTemplate || "", this.groupTemplate || "", this.itemTemplate || "", this.itemBodyTemplate || ""),
                 SPActions.getCode_checkTemplatesSaved(),
                 (result, errorInfo) => {
                     if (errorInfo || result == "error") {
@@ -71,12 +78,19 @@ module CSREditor
         public startEditing()
         {
             this.editing = true;
+            this.binding = false;
         }
 
         public cancelEditing()
         {
+            this.binding = false;
             this.editing = false;
             this.error = "";
+        }
+
+        public startBinding()
+        {
+            this.binding = true;
         }
 
         private checkDirty(property, newValue)

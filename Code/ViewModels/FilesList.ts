@@ -129,6 +129,7 @@ module CSREditor {
                             var fm = this.otherFiles[o];
                             fm.displayTemplateUniqueId = result.displayTemplates[i].uniqueId;
                             fm.displayTemplateData = result.displayTemplates[i].info;
+                            fm.displayTemplateUrl = originalUrl;
                             this.otherFiles.remove(fm);
                             var addedToSwp = false;
                             for (var j=0; j < this.searchWebparts.length; j++)

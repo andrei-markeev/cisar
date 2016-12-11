@@ -108,22 +108,36 @@
                     <button data-bind="click: cancelEditing">Cancel</button>
                 </div>
             </div>
-            <div class="files" data-bind="visible: !editing">
+            <div class="actions" data-bind="visible: binding">
+                <label>Select control template:</label>
+                <select data-bind="options: controlDisplayTemplates, optionsText: 'shortUrl', optionsValue: 'displayTemplateUrl', value: controlTemplate, valueAllowUnset: true, optionsCaption: '(none)'"></select>
+                <label>Select item template:</label>
+                <select data-bind="options: itemDisplayTemplates, optionsText: 'shortUrl', optionsValue: 'displayTemplateUrl', value: itemTemplate, valueAllowUnset: true, optionsCaption: '(none)'"></select>
+                <button data-bind="click: saveTemplates"><i class="fa fa-floppy-o"></i> Save</button>
+                <button data-bind="click: cancelEditing">Cancel</button>
+            </div>
+            <div class="files" data-bind="visible: !editing && !binding">
+                <div class="add" data-bind="click: startBinding">
+                    <span><i class="fa fa-link"></i></span>
+                    <div class="hint">Click here to bind display templates to this webpart</div>
+                </div>
+                <div class="loading" data-bind="visible: loading"><img src="/Content/loader.gif" alt=""></div>
                 <!-- ko foreach: files -->
                 <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
                     <a data-bind="click: publishFile, clickBubble: false, visible: current" class="publish-button" title="publish file"><i class="fa fa-check"></i></a>
                     <a data-bind="click: cloneFile, clickBubble: false, visible: current" title="create a copy of this display template with a different name"><i class="fa fa-clone"></i></a>
                     <span data-bind="text: shortUrl"></span>
                 </div>
-                <div data-bind="visible: cloning" class="clone">
-                    <input data-bind="value: cloneName" />
+                <div data-bind="visible: cloning && !cloningInProgress" class="clone">
+                    <input data-bind="value: cloneName"></input>
                     <button data-bind="click: confirmCloning"><i class="fa fa-clone"></i> Clone</button>
                     <button data-bind="click: cancelCloning">Cancel</button>
                 </div>
+                <div class="loading" data-bind="visible: cloningInProgress"><img src="/Content/loader.gif" alt=""></div>
                 <!-- /ko -->
             </div>
         <!-- /ko -->
-        <div class="header" data-bind="visible: !loading && displayTemplates.length > 0">Other display templates</div>
+        <div class="header other-files" data-bind="visible: !loading && displayTemplates.length > 0">Other display templates</div>
         <div class="files" data-bind="visible: !loading && displayTemplates.length > 0">
             <!-- ko foreach: displayTemplates -->
             <div data-bind="click: makeFileCurrent, attr: { title: url }, css: { current: current, published: published }">
@@ -131,11 +145,12 @@
                 <a data-bind="click: cloneFile, clickBubble: false, visible: current" title="create a copy of this display template with a different name"><i class="fa fa-clone"></i></a>
                 <span data-bind="text: shortUrl"></span>
             </div>
-            <div data-bind="visible: cloning" class="clone">
-                <input data-bind="value: cloneName" />
+            <div data-bind="visible: cloning && !cloningInProgress" class="clone">
+                <input data-bind="value: cloneName"></input>
                 <button data-bind="click: confirmCloning"><i class="fa fa-clone"></i> Clone</button>
                 <button data-bind="click: cancelCloning">Cancel</button>
             </div>
+            <div class="loading" data-bind="visible: cloningInProgress"><img src="/Content/loader.gif" alt=""></div>
             <!-- /ko -->
         </div>
         <div class="header other-files" data-bind="visible: !loading && otherFiles.length > 0">Other files on page</div>
@@ -158,7 +173,7 @@
         <textarea id="editor"></textarea>
     </div>
     <div class="dimmer" data-bind="visible: changePathDialogShown, click: changePathDialogShown = false" style="display: none"></div>
-    <div class="change-path-dialog" data-bind="visible: changePathDialogShown" style="display: none">
+    <div class="dialog change-path-dialog" data-bind="visible: changePathDialogShown" style="display: none">
         <div>Enter path to library and folder where you want the files created by Cisar to be stored (the path must exist):</div>
         <div>
             <select data-bind="options: pathRelativeToOptions, value: pathRelativeToEntered" />
