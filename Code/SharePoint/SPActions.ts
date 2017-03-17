@@ -370,7 +370,7 @@ module CSREditor {
                 context.load(properties);
 
                 context.executeQueryAsync(function () {
-                    window["g_Cisar_JSLink"] = properties.get_item("JSLink").toLowerCase();
+                    window["g_Cisar_JSLink"] = (properties.get_item("JSLink") || "").toLowerCase();
                 },
                 function () {
                     window["g_Cisar_JSLink"] = 'error';
@@ -485,7 +485,7 @@ module CSREditor {
                 context.load(properties);
 
                 context.executeQueryAsync(function () {
-                    var oldJsLinkString = properties.get_item("JSLink").toLowerCase();
+                    var oldJsLinkString = (properties.get_item("JSLink") || "").toLowerCase();
 
                     var toCheck = [];
                     if (path.indexOf(_spPageContextInfo.webServerRelativeUrl) == 0) {
@@ -569,7 +569,7 @@ module CSREditor {
             return "(" + SPActions.waitForGlobal + ")('" + globalVar + "');";
         }
         private static waitForGlobal(globalVar: string) {
-            if (window[globalVar]) {
+            if (window[globalVar] != null) {
                 var result = window[globalVar];
                 delete window[globalVar];
                 return result;
